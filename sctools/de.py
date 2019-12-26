@@ -4,6 +4,8 @@ import numpy as np
 from scipy import stats
 import pandas as pd
 import tqdm
+from plotnine import ggplot, geom_point, aes, stat_smooth, facet_wrap, theme, scale_x_log10, scale_y_log10, xlab, ylab,  geom_violin, geom_boxplot, element_text
+
 
 """
 tools for differential expression in scanpy
@@ -201,3 +203,60 @@ def scanpy_DE_to_dataframe(adata):
         group_dfs[g] = tmp
 
     return group_dfs
+
+
+
+def plot_de(adata, scale=True, mode='boxplot', ngenes=5):
+
+    """
+    some ggplot-based display of the differential expression results.
+
+    for each group of differnetially expressed genes (multiple genes per condition)
+    do boxplots of how the cells in the different conditions compare
+
+    big bonus: cells of different conditions are next to each other, easoer to compare than
+    `sc.pl.rank_genes_groups_violin`
+
+    mode: either `violin` or 'boxplot'
+    """
+
+    _tmp= scanpy_DE_to_dataframe_fast(adata)
+
+    de_genes = {g: df.name.head(ngenes).tolist() for g,df in _tmp.items()}
+
+    group = adata.uns['rank_genes_groups']['params']['groupby']
+
+    # building a long dataframe with
+    # cell_index, genename, expression, which_de_group
+    gg_df = []
+
+    for c, genes in de_genes.items():
+        for g in genes:
+            _tmp_df = adata.obs[[group]]  # which condition the datapoint belongs to
+            X  = adata.raw[:, g].X
+
+            #standard scaling
+            if scale:
+                X = X - X.mean()
+                X = X / X.std()
+
+            _tmp_df['expression'] = X
+            _tmp_df['gene'] = g
+            _tmp_df['which_de_group'] = c # which group is this gene DE
+
+            gg_df.append(_tmp_df)
+
+    gg_df = pd.concat(gg_df)
+
+    geom_dict = {
+        'boxplot':geom_boxplot,
+        'violin': geom_violin
+        }
+
+    plot = \
+    ggplot(gg_df, aes(x='factor(gene)', y='expression', fill=f'factor({group})'))\
+      + geom_dict[mode]() \
+      + facet_wrap('~which_de_group', scales='free_x') \
+      + theme(axis_text_x=element_text(rotation=90, hjust=1)) # + scale_y_log10() # geom_violin() # + scale_y_log10()
+
+    return plot

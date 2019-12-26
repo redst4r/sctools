@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(name='sctools',
       version=0.1,
-      description='Tools that come handy when working in scanpy',
+      description='Tools that come handy when working in scanpy all day long',
       url='http://github.com/redst4r/sctools/',
       author='redst4r',
       maintainer='redst4r',
@@ -17,6 +17,7 @@ setup(name='sctools',
           'scipy',
           'pandas',
           'scanpy',
+          'plotnine'
           # 'rnaseqtools'  # TODO turn this into a github dependency
           ],
       zip_safe=False)

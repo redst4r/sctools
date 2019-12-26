@@ -1,0 +1,190 @@
+import itertools
+import scanpy as sc
+import numpy as np
+from scipy import stats
+import pandas as pd
+import tqdm
+
+def DEG_one_vs_all(Q):
+
+    # precompute the groups. as a matter of fact, compute all the stats for the ttest
+    groupnames = Q.obs['leiden'].unique()
+
+    print('precomputing')
+    # prec_groups= {gname: Q[Q.obs.query(f'leiden==@gname').index,:] for gname in groupnames}
+
+    prec_groups_means= {gname: Q[Q.obs.query(f'leiden==@gname').index,:].raw.X.A.mean(0) for gname in groupnames}
+    prec_groups_vars = {gname: Q[Q.obs.query(f'leiden==@gname').index,:].raw.X.A.var(0) for gname in groupnames}
+    prec_groups_nobs = {gname: len(Q[Q.obs.query(f'leiden==@gname').index,:]) for gname in groupnames}
+
+    the_df = []
+
+    # we deliberately iterate over the product instead of combinations (n^2 vs n*(n-1)/2)
+    # such that each cluster is represented as group1
+    # otherwise it gets very confusing to look for upregultated genes  of a specific cluster
+    for i, j in itertools.product(groupnames, groupnames):
+        if i == j: continue
+        # print(i,j)
+
+        g1m = prec_groups_means[i]
+        g2m = prec_groups_means[j]
+        g1s = np.sqrt(prec_groups_vars[i])
+        g2s = np.sqrt(prec_groups_vars[j])
+
+        with np.errstate(invalid="ignore"):
+            scores, pvals = stats.ttest_ind_from_stats(
+                mean1=g1m, std1=g1s, nobs1=prec_groups_nobs[i],
+                mean2=g2m, std2=g2s, nobs2=prec_groups_nobs[j],
+                equal_var=False  # Welch's
+            )
+        ddd = [{'score': s,
+                'pval': p,
+                'name':n,
+                'group1':i,
+                'group2':j,
+                'group1_mean': _g1m,
+                'group2_mean': _g2m,
+                'group1_std': _g1s,
+                'group2_std': _g2s,
+               }                                                      # WARNING: the RAW is very important here!!
+               for s,p,n, _g1m, _g2m, _g1s, _g2s in zip(scores, pvals, Q.raw.var.index.values, g1m, g2m, g1s,g2s) if not np.isnan(s) and p<0.1 and s>0] # s>0 such that we only look at upregulated genes
+        the_df.extend(ddd)
+
+    return pd.DataFrame(the_df)
+
+
+def DEG_one_vs_all_aggregate(de):
+    # aggregate the genes: look for ones that are significant against ever other cluster
+    # i.e. three clusters A,B,C: A-B, A-C is significant,
+    # then we call the gene a marker of cluster A
+    df_all_siginificant = []
+    groups = de.group1.unique()
+    for cl in tqdm.tqdm(groups):
+    #     print(cl)
+        tmp1 = de.query('group1==@cl')  # all tests involving cluster cl
+        # see wichi genes had significant tests across all clusters
+        # problem is: we already filtered some genes out in `DEG_one_vs_all`, hence not all groups will be present
+        # so, we only look at genes that have a test vs all remaining groups
+        all_significant = tmp1.groupby('name').apply(lambda g: np.all(g.pval < 0.001) and len(g) == len(groups)-1)
+        all_significant = all_significant[all_significant==True].index.values
+
+        max_pval = tmp1.groupby('name').apply(lambda g: np.max(g.pval))
+
+        df_all_siginificant.extend([{'group': cl, 'name': _, 'pval': max_pval[_]} for _ in all_significant])
+    df_all_siginificant = pd.DataFrame(df_all_siginificant)
+    return df_all_siginificant
+
+def scanpy_DE_to_dataframe_fast(adata):
+    """
+    to just get DE genes and their scores/pvals out of scanpy
+    """
+    rank_dict = adata.uns['rank_genes_groups']
+    df = []
+
+    groupby = adata.uns['rank_genes_groups']['params']['groupby']
+    groupnames = adata.uns['rank_genes_groups']['names'].dtype.names
+
+    for i in range(len(rank_dict['scores'])):
+        # the items always come in pairs: up in group 1, up in group2
+        # each of the following is of size: 1x(groups)
+        s = rank_dict['scores'][i]
+        n= rank_dict['names'][i]
+        p= rank_dict['pvals'][i]
+        q= rank_dict['pvals_adj'][i]
+        fc = rank_dict['logfoldchanges'][i]
+
+        for j in range(len(s)): # iterationg over all groups, adding DE of group vs rest
+            gname = groupnames[j]
+            genename = n[j]
+            tmp  = {'score': s[j],
+                    'name': genename,
+                    'pval': p[j],
+                    'qval': q[j],
+                    'logfoldchange': fc[j],
+                    # 'symbol': adata.var.loc[genename].name, # ['symbol'],
+                    'symbol': genename, # ['symbol'],
+                    'group': j,
+                    'groupname': gname
+                    }
+            df.append(tmp)
+
+    df = pd.DataFrame(df)
+    # the df contains a mix of De for all grous
+    # create on DF per group
+    group_dfs = {}
+    for g in df['group'].unique():
+        tmp = df.query('group==@g').copy()
+        group_dfs[g] = tmp
+
+    return group_dfs
+
+
+def scanpy_DE_to_dataframe(adata):
+    """
+    turn the differential expression from scanpy (rank...)
+    into a more readable dataframe
+    """
+    rank_dict = adata.uns['rank_genes_groups']
+    df = []
+    groupby = adata.uns['rank_genes_groups']['params']['groupby']
+    groupnames = adata.uns['rank_genes_groups']['names'].dtype.names
+
+    import scipy.sparse
+    #percompute the cluster datasets
+    # also change the raw matrix into sparse column format for fast indxein
+    prec_datasets = {} # gname: adata[adata.obs.query(f'{groupby}==@gname').index,:] for gname in groupnames}
+    for gname in groupnames:
+        _tmp_adata = adata[adata.obs.query(f'{groupby}==@gname').index,:]
+
+        rawX = scipy.sparse.csc_matrix(_tmp_adata.raw.X)
+        prec_datasets[gname] = sc.AnnData(rawX,
+                                          obs=_tmp_adata.obs,
+                                          var=_tmp_adata.raw.var)
+
+    gene_to_index_raw = {g:i for i,g in enumerate(adata.raw.var.index)}
+
+    for i in range(len(rank_dict['scores'])):
+        # the items always come in pairs: up in group 1, up in group2
+
+        # each of the following is of size: 1x(groups)
+        s = rank_dict['scores'][i]
+        n= rank_dict['names'][i]
+        p= rank_dict['pvals'][i]
+        q= rank_dict['pvals_adj'][i]
+        fc = rank_dict['logfoldchanges'][i]
+
+        for j in range(len(s)): # iterationg over all groups, adding DE of group vs rest
+
+            # additionally count how many cells express that marker at all
+            # in the cluster of interest
+            # (avoids genes that are upregulated strognly in a single cell but otherwise not expressed at all)
+            gname = groupnames[j]
+            genename = n[j]
+            adata_cluster = prec_datasets[gname]
+            # X = adata_cluster[:, genename].X
+            X = adata_cluster.X[:, gene_to_index_raw[genename]]
+            percent_expressing = np.sum(X>0)/X.shape[0]
+            raw_avg_expression = np.mean(X)
+            tmp  = {'score': s[j],
+                    'name': genename,
+                    'pval': p[j],
+                    'qval': q[j],
+                    'logfoldchange': fc[j],
+                    # 'symbol': adata.var.loc[genename].name, # ['symbol'],
+                    'symbol': genename, # ['symbol'],
+                    'group': j,
+                    'groupname': gname,
+                    'percent_expressing': percent_expressing,
+                    'raw_avg_expression': raw_avg_expression}
+
+            df.append(tmp)
+
+    df = pd.DataFrame(df)
+    # the df contains a mix of De for all grous
+    # create on DF per group
+    group_dfs = {}
+    for g in df['group'].unique():
+        tmp = df.query('group==@g').copy()
+        group_dfs[g] = tmp
+
+    return group_dfs

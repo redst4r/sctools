@@ -5,7 +5,15 @@ from scipy import stats
 import pandas as pd
 import tqdm
 
+"""
+tools for differential expression in scanpy
+"""
+
 def DEG_one_vs_all(Q):
+
+    """
+    t-test of each leiden cluster against all other clusters
+    """
 
     # precompute the groups. as a matter of fact, compute all the stats for the ttest
     groupnames = Q.obs['leiden'].unique()
@@ -24,7 +32,6 @@ def DEG_one_vs_all(Q):
     # otherwise it gets very confusing to look for upregultated genes  of a specific cluster
     for i, j in itertools.product(groupnames, groupnames):
         if i == j: continue
-        # print(i,j)
 
         g1m = prec_groups_means[i]
         g2m = prec_groups_means[j]
@@ -54,9 +61,11 @@ def DEG_one_vs_all(Q):
 
 
 def DEG_one_vs_all_aggregate(de):
-    # aggregate the genes: look for ones that are significant against ever other cluster
-    # i.e. three clusters A,B,C: A-B, A-C is significant,
-    # then we call the gene a marker of cluster A
+    """
+    aggregate the genes: look for ones that are significant against ever other cluster
+    i.e. three clusters A,B,C: A-B, A-C is significant,
+    then we call the gene a marker of cluster A
+    """
     df_all_siginificant = []
     groups = de.group1.unique()
     for cl in tqdm.tqdm(groups):
@@ -74,9 +83,13 @@ def DEG_one_vs_all_aggregate(de):
     df_all_siginificant = pd.DataFrame(df_all_siginificant)
     return df_all_siginificant
 
+
+
 def scanpy_DE_to_dataframe_fast(adata):
     """
     to just get DE genes and their scores/pvals out of scanpy
+
+    faster version to `scanpy_DE_to_dataframe`
     """
     rank_dict = adata.uns['rank_genes_groups']
     df = []

@@ -1,6 +1,6 @@
 import pandas as pd
 from bokeh.plotting import figure, output_file, show, ColumnDataSource
-from bokeh.palettes import Spectral5, Category20b,Blues8
+from bokeh.palettes import Spectral5, Category20b, Blues8
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 

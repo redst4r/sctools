@@ -51,14 +51,17 @@ def groupby_rows(adata, groupby_field:str, aggr_fun):
     obs_df.index = obs_df.index.astype('str')
 
     adata_aggr = sc.AnnData(np.concatenate(x_new),
-                           obs=obs_df,
-                           var=adata.var.copy())
+                            obs=obs_df,
+                            var=adata.var.copy())
     return adata_aggr
 
 
-def adata_merge(adatas, security_check=True):
+def adata_merge(adatas, security_check=True, verbose=True):
     "merging the datasets, assuming the .var are identical"
 
+    assert isinstance(adatas, list), "adatas hsa to be supplied as list!"
+
+    # TODO get rid of this custom code
     for a in adatas:
         a.var.drop(['_id', '_score', 'notfound'], inplace=True, axis=1, errors='ignore') # ignore if droppig non-existing fields
         if 'symbol' in a.var:
@@ -77,7 +80,7 @@ def adata_merge(adatas, security_check=True):
             if not np.all(a.var == reference_var.var):
                 # chekc if the mismatches are Nan
                 for i, j in zip(*np.where(a.var != reference_var)):
-                    assert np.isnan(a.var.values[i, j])
+                    assert np.isnan(a.var.values[i, j]), f"{i},{j}, {a.var.loc[i,j]}"
                     assert np.isnan(reference_var.values[i, j])
 
     # cannot concat if the .var dont match between adata objects

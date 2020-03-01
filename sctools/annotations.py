@@ -99,4 +99,27 @@ def annotate_qc_metrics(adata):
     adata.obs['n_ribo'] = adata.raw[:,adata.var.query('is_ribo==True').index].X.sum(1)
     adata.obs['percent_ribo'] = adata.obs['n_ribo'] / adata.obs['n_molecules']
 
+    nmg = [_ for _ in nuclear_mito_genes if _ in adata.var_names]
+    adata.obs['n_nuclear_mito'] = adata[:,nmg].X.sum(1).A.flatten() if is_sparse else adata[:,nmg].X.sum(1).flatten()
+    adata.obs['percent_nuclear_mito'] = adata.obs['n_nuclear_mito'] / adata.obs['n_molecules']
+
+
     return adata
+
+
+
+nuclear_mito_genes = [
+    # complex 1
+    'NDUFS7', 'NDUFS8', 'NDUFV2', 'NDUFS3', 'NDUFS2', 'NDUFV1', 'NDUFS1', 'NDUFS6', 'NDUFA12', 'NDUFS4', 'NDUFA9', 'NDUFAB1', 'NDUFA2', 'NDUFA1', 'NDUFB3', 'NDUFA5', 'NDUFA6', 'NDUFA11', 'NDUFB11', 'NDUFS5', 'NDUFB4', 'NDUFA13', 'NDUFB7', 'NDUFA8', 'NDUFB9', 'NDUFB10', 'NDUFB8', 'NDUFC2', 'NDUFB2', 'NDUFA7', 'NDUFA3', 'NDUFA4', 'NDUFB5', 'NDUFB1', 'NDUFC1', 'NDUFA10', 'NDUFA4L2', 'NDUFV3', 'NDUFB6', 'NDUFAF1', 'NDUFAF2', 'NDUFAF3', 'NDUFAF4',
+    # complex2
+    'SDHA', 'SDHB', 'SDHC', 'SDHD',
+
+    # complex 3
+    'ETFDH',
+
+    #complex 4
+    'CYC1', 'UQCRFS1', 'UQCRC1', 'UQCRC2', 'CYC1', 'UQCRB', 'UQCRH', 'UQCRQ', 'UQCR10', 'UQCR11',
+
+    #complex 5
+    'COX4I1', 'COX4I2', 'COX5A', 'COX5B', 'COX6A1', 'COX6A2', 'COX6B1', 'COX6B2', 'COX6C', 'COX7A1', 'COX7A2', #'COX7A3', 'COX7B', 'COX7C', 'COX7A2L', 'COX8A', 'COX8C', 'COA1', 'COA3', 'COA4', 'COA5', 'COA6', 'COA7', 'COX11', 'COX14', 'COX15', 'COX16', 'COX17', 'COX18', 'COX19', 'COX20'
+]

@@ -205,30 +205,16 @@ def scanpy_DE_to_dataframe(adata):
     return group_dfs
 
 
+def de_adata_to_flat_df(adata, scale:bool, ngenes, qval_cutoff):
+    _tmp = scanpy_DE_to_dataframe_fast(adata)
 
-def plot_de(adata, scale=True, mode='boxplot', ngenes=5):
-
-    """
-    some ggplot-based display of the differential expression results.
-
-    for each group of differnetially expressed genes (multiple genes per condition)
-    do boxplots of how the cells in the different conditions compare
-
-    big bonus: cells of different conditions are next to each other, easoer to compare than
-    `sc.pl.rank_genes_groups_violin`
-
-    mode: either `violin` or 'boxplot'
-    """
-
-    _tmp= scanpy_DE_to_dataframe_fast(adata)
-
-    de_genes = {g: df.name.head(ngenes).tolist() for g,df in _tmp.items()}
+    de_genes = {g: df.query(f'qval<{qval_cutoff}').name.head(ngenes).tolist() for g,df in _tmp.items()}
 
     group = adata.uns['rank_genes_groups']['params']['groupby']
 
     # building a long dataframe with
     # cell_index, genename, expression, which_de_group
-    gg_df = []
+    flat_df = []
 
     for c, genes in de_genes.items():
         for g in genes:
@@ -244,9 +230,25 @@ def plot_de(adata, scale=True, mode='boxplot', ngenes=5):
             _tmp_df['gene'] = g
             _tmp_df['which_de_group'] = c # which group is this gene DE
 
-            gg_df.append(_tmp_df)
+            flat_df.append(_tmp_df)
 
-    gg_df = pd.concat(gg_df)
+    flat_df = pd.concat(flat_df)
+    return flat_df, group
+
+def plot_de(adata, scale=True, mode='boxplot', ngenes=5, qval_cutoff=0.2):
+
+    """
+    some ggplot-based display of the differential expression results.
+
+    for each group of differnetially expressed genes (multiple genes per condition)
+    do boxplots of how the cells in the different conditions compare
+
+    big bonus: cells of different conditions are next to each other, easoer to compare than
+    `sc.pl.rank_genes_groups_violin`
+
+    mode: either `violin` or 'boxplot'
+    """
+    gg_df, group = de_adata_to_flat_df(adata, scale, ngenes, qval_cutoff)
 
     geom_dict = {
         'boxplot':geom_boxplot,

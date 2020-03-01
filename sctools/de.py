@@ -4,8 +4,7 @@ import numpy as np
 from scipy import stats
 import pandas as pd
 import tqdm
-from plotnine import ggplot, geom_point, aes, stat_smooth, facet_wrap, theme, scale_x_log10, scale_y_log10, xlab, ylab,  geom_violin, geom_boxplot, element_text
-
+import plotnine as pn
 
 """
 tools for differential expression in scanpy
@@ -251,14 +250,15 @@ def plot_de(adata, scale=True, mode='boxplot', ngenes=5, qval_cutoff=0.2):
     gg_df, group = de_adata_to_flat_df(adata, scale, ngenes, qval_cutoff)
 
     geom_dict = {
-        'boxplot':geom_boxplot,
-        'violin': geom_violin
+        'boxplot':pn.geom_boxplot,
+        'violin': pn.geom_violin
         }
 
     plot = \
-    ggplot(gg_df, aes(x='factor(gene)', y='expression', fill=f'factor({group})'))\
+    pn.ggplot(gg_df, pn.aes(x='factor(gene)', y='expression', fill=f'factor({group})'))\
       + geom_dict[mode]() \
-      + facet_wrap('~which_de_group', scales='free_x') \
-      + theme(axis_text_x=element_text(rotation=90, hjust=1)) # + scale_y_log10() # geom_violin() # + scale_y_log10()
+      + pn.facet_wrap('~which_de_group', scales='free_x') \
+      + pn.theme(axis_text_x=pn.element_text(rotation=90, hjust=1))
+      # + pn.scale_y_log10() # pn.geom_violin() # + pn.scale_y_log10()
 
     return plot

@@ -203,6 +203,31 @@ def scanpy_DE_to_dataframe(adata):
 
     return group_dfs
 
+def gene_expression_to_flat_df(adata, genes, grouping_var, scale):
+
+    groups = adata.obs[grouping_var].unique()
+    flat_df = []
+
+    for the_gene in genes:
+    # for c, genes in de_genes.items():
+        for the_group in groups:
+            ix_group = adata.obs[grouping_var] == the_group  # which condition the datapoint belongs to
+            X  = adata[ix_group, :][:, the_gene].X
+
+            #standard scaling
+            if scale:
+                X = X - X.mean()
+                X = X / X.std()
+
+            _tmp_df = pd.DataFrame()
+            _tmp_df['expression'] = X
+            _tmp_df['gene'] = the_gene
+            _tmp_df[grouping_var] = the_group
+
+            flat_df.append(_tmp_df)
+
+    flat_df = pd.concat(flat_df)
+    return flat_df
 
 def de_adata_to_flat_df(adata, scale:bool, ngenes, qval_cutoff):
     _tmp = scanpy_DE_to_dataframe_fast(adata)

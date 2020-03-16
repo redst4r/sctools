@@ -65,3 +65,4 @@ def load_from_kallisto(folder:str, kallisto_prefix='genecount'):
 
     Q = annotate_gene_symbols(Q)
     return Q
+

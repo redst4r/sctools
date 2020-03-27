@@ -1,5 +1,5 @@
 import scanpy as sc
-from sctools import adata_merge, annotate_qc_metrics, annotate_cellcycle, annotate_coding_genes
+from sctools import annotate_qc_metrics, annotate_cellcycle, annotate_coding_genes
 import numpy as np
 
 class Verbose(object):
@@ -17,13 +17,29 @@ class Verbose(object):
         if self.verbose:
             print(f'Done {self.msg}')
 
+def standard_processing(adata):
+    """
+    Wrapper around `michi_kallisto_recipe()` with standardized values for
+    QC cutoffs
+    """
+    UMI_CUTOFF = 1000
+    VARIABLE_GENES = 4000
+    MITO_CUTOFF = 0.4
 
+    adata.raw = adata.copy()
+    adata = michi_kallisto_recipe(adata,
+                                  umi_cutoff=UMI_CUTOFF,
+                                  n_top_genes=VARIABLE_GENES,
+                                  percent_mito_cutoff=MITO_CUTOFF,
+                                  annotate_cellcycle_flag=True,
+                                  verbose=True )
+    return adata
 
 def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito_cutoff=1, annotate_cellcycle_flag=False, verbose=True):
 
     """
-    filters for coding genes, adds QC, filters cells based on UMI, applies Zheng recipe
-    calulates pca/nn/leiden/paga/umap
+    filters for coding genes, adds QC, filters cells based on UMI, applies
+    Zheng recipe calulates pca/nn/leiden/paga/umap
 
     adata: should be an object derived from kallisto
     """
@@ -41,6 +57,8 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
     annotating the cellcycle on the reduced data (filtered for potential cells, not just CB)
     since preprocessing doenst change anything (except kicking out genes/cells)
     its alot more feasable after filtering!
+    Note; this might still take ALOT of memory if more then 10k cells remain after filtering
+    not sure what the cell-cycle scoring function in scanpy is doing internally!
     """
     # if verbose: print('annotating cell cycle')
     if annotate_cellcycle_flag:

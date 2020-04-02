@@ -59,7 +59,11 @@ def load_from_kallisto(folder:str, kallisto_prefix='genecount'):
     Q = sc.read_mtx(mtx_file)
     obs = pd.read_csv(obs_file, header=None, index_col=0)
     var = pd.read_csv(var_file, header=None, index_col=0)
+    
+    obs.index.name = 'CB' # needed for anndata>=0.7 which doesnt allow int as name
+    var.index.name = None # needed for anndata>=0.7 which doesnt allow int as name
 
+    
     Q.obs = obs
     Q.var = var
 

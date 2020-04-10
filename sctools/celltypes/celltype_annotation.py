@@ -55,99 +55,52 @@ def dict_argmax_val(d):
     max_val = -np.inf
     max_key = None
     for k,v in d.items():
-#         print(v, max_val)
         if v > max_val:
             max_key = k
             max_val = v
     return max_key, max_val
 
-# def create_meta_markers_pairwise(adata, marker_dict, cluster_name='leiden', auc_cutoff=0.7, SIMPLE=True):
-#     assert adata.raw
-#
-#     # first, erase all previous marker annotations
-#     to_drop = [_ for _ in adata.obs.columns if _.startswith('broad_score_')] + ['marker_based_celltype']
-#     adata.obs.drop(to_drop, axis=1, inplace=True, errors='ignore')
-#
-#     mol_per_cell = np.array(adata.raw.X.sum(1)).flatten()
-#     for celltype, markers in marker_dict.items():
-#         if len(markers) == 1:
-#             metagene = np.array(adata.raw[:,markers].X).flatten()
-#         else:
-# #             metagene = np.array(adata.raw[:,markers].X.sum(1)).flatten()
-#             metagene = np.array(adata.raw[:,markers].X.mean(1)).flatten()
-#
-#         s = np.log(1e-5 + 10**4 * metagene/mol_per_cell)
-#         adata.obs[f'broad_score_{celltype}'] = s
-#
-#     # use the AUC to figure out which celltype each cluster belongs to
-#     # for each cluster look which cell-score has the best AUC
-#
-#     auc_dict = {}
-#     df = []
-#     import itertools
-#     cluster_pairs = itertools.combinations(adata.obs[cluster_name].unique(), 2)
-#     for cl1, cl2 in tqdm.tqdm(cluster_pairs):
-#         celltypes = marker_dict.keys()
-#         ix = adata.obs.query(f'{cluster_name} == @cl1 or {cluster_name}==@cl2').index
-#         adata_sub = adata[ix]
-#         labels = adata_sub.obs[cluster_name]==cl2  # a positive prediction signifies cluster 2
-#
-#         for celltype in celltypes:
-#
-#             if SIMPLE:
-#                 scores = adata_sub.obs[f'broad_score_{celltype}']
-#             else:
-#                 from sklearn.ensemble import RandomForestClassifier
-#                 cls = RandomForestClassifier(n_estimators=50, oob_score=True)
-#                 x = adata_sub.raw[:,marker_dict[celltype]].X
-#
-#                 if not isinstance(x, np.ndarray):
-#                     x = x.A
-#
-#                 if x.ndim==1:
-#                     x = x.reshape(-1,1)
-#
-#                 cls.fit(x, labels)
-#                 scores = cls.oob_decision_function_[:,1]
-#
-#             a = roc_auc_score(labels, scores)
-#             auc_dict[(cl1, cl2, celltype)] = a
-#             df.append({'c1': cl1, 'c2': cl2, 'celltype': celltype, 'auc': a})
-#             df.append({'c2': cl1, 'c1': cl2, 'celltype': celltype, 'auc': 1-a})  # for symmetry
-#
-#     df = pd.DataFrame(df)
-#     return auc_dict, df
 
-
-
-def create_meta_markers(adata, marker_dict, cluster_name='leiden', auc_cutoff=0.7, SIMPLE=True):
+def annotate_celltypes_broad(adata, marker_dict, cluster_name='leiden', auc_cutoff=0.7, SIMPLE=True):
     """
-    Using a scoring system from Broad (cant find the paper ATM) to give each cell and celltype a score
+    Using a scoring system from Broad (cant find the paper ATM) to give each cell and celltype a score.
+    To annotate a cluster of cells with a cell type, the AUC is used:
+    How well can a certain set of markers distinguish the cluster from all other cells.
 
+    Parameters:
         marker_dict: str->list[str]: celltype with a list of markers
 
         auc_cutoff: to annotate a cluster as a specific celltype, it has to have AUC>auc_cutoff
             otherwise we consider it a to ambigous choice
+    Return:
+        - modifies the adata, adding the scores and final celltype as columns into adata.obs
+        - df_cluster_celltype: each cluster/celltye AUC as a pd.DataFrame
+        - cluster_celltype_mapping (dict): mapping cluster --> cell type
     """
 
     assert adata.raw, "works only on raw.X data"
 
+    PREFIX = 'broad_score_'
+    CELLTYPE_COLNAME = 'marker_based_celltype'
+
     # first, erase all previous marker annotations
-    to_drop = [_ for _ in adata.obs.columns if _.startswith('broad_score_')] + ['marker_based_celltype']
+    to_drop = [_ for _ in adata.obs.columns if _.startswith(PREFIX)] + [CELLTYPE_COLNAME]
     adata.obs.drop(to_drop, axis=1, inplace=True, errors='ignore')
 
+    # each list of markers (for one celltype) is turned into a single score,
+    # which is just the average of all markers in that cell
+    # it gets normalized by cellsize and log-transformed
     mol_per_cell = np.array(adata.raw.X.sum(1)).flatten()
     for celltype, markers in marker_dict.items():
         if len(markers) == 1:
             metagene = adata.raw.obs_vector(markers[0])
         else:
-#             metagene = np.array(adata.raw[:,markers].X.sum(1)).flatten()
             metagene = np.array(adata.raw[:,markers].X.mean(1)).flatten()
 
         s = np.log(1e-5 + 10**4 * metagene/mol_per_cell)
-        adata.obs[f'broad_score_{celltype}'] = s
+        adata.obs[f'{PREFIX}{celltype}'] = s
 
-    # use the AUC to figure out which celltype each cluster belongs to
+    # use the AUC to figure out which celltype each **cluster** belongs to
     # for each cluster look which cell-score has the best AUC
     df_cluster_celltype = []
     cluster_celltype_mapping = {}
@@ -159,7 +112,7 @@ def create_meta_markers(adata, marker_dict, cluster_name='leiden', auc_cutoff=0.
             labels = adata.obs[cluster_name]==cl
 
             if SIMPLE:
-                scores = adata.obs[f'broad_score_{celltype}']
+                scores = adata.obs[f'{PREFIX}{celltype}']
             else:
                 from sklearn.ensemble import RandomForestClassifier
                 cls = RandomForestClassifier(n_estimators=50, oob_score=True)
@@ -189,11 +142,12 @@ def create_meta_markers(adata, marker_dict, cluster_name='leiden', auc_cutoff=0.
         df_cluster_celltype.append(aucs)
     df_cluster_celltype = pd.DataFrame(df_cluster_celltype).set_index('cluster').sort_index()
 
-    adata.obs['marker_based_celltype'] = [cluster_celltype_mapping[_] for _ in adata.obs[cluster_name]]
+    adata.obs[CELLTYPE_COLNAME] = [cluster_celltype_mapping[_] for _ in adata.obs[cluster_name]]
 
     return df_cluster_celltype, cluster_celltype_mapping
 
-
+# some legacy naming:
+create_meta_markers = annotate_celltypes_broad
 
 
 def build_table_literature_vs_differentially_expressed(cluster_celltype_mapping, data_marker_df, literature_marker_dict):

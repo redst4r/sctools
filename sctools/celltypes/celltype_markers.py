@@ -2,6 +2,20 @@
 a chaotic collection of genesets, mostly for cell type markers
 """
 
+# from teichman HCA lung paper
+lung_markers = {
+    'basal': ['KRT5', 'TP63'],
+    'ciliated': ['FOXJ1', 'KCTD12', 'PIFO'],
+    'secretory/goblet': ['CEACAM5', 'S100A4', 'MUC5AC'],
+    'secretory/goblet_1': ['MUC5AC', 'KRT4', 'CD36'],
+    'secretory/goblet_2': ['MUC5AC', 'CXCL10', 'IDO1', 'NOS2', 'IL19'],
+    'aviolar-T2': ['SFTPC'],
+    'aviolar-T1': ['AGER'],
+    'club/clara': ['MUC5AC', 'MUC5B'],
+
+}
+
+
 other_signatures = {
     # from https://broadinstitute.github.io/2019_scWorkshop/data-wrangling-scrnaseq.html
     'dissociation': ["ATF3", "BTG2", "CEBPB", "CEBPD", "CXCL3", "CXCL2", "CXCL1", "DNAJA1", "DNAJB1", "DUSP1", "EGR1", "FOS", "FOSB", "HSP90AA1", "HSP90AB1", "HSPA1A", "HSPA1B", "HSPA1A", "HSPA1B", "HSPA8", "HSPB1", "HSPE1", "HSPH1", "ID3", "IER2", "JUN", "JUNB", "JUND", "MT1X", "NFKBIA", "NR4A1", "PPP1R15A", "SOCS3", "ZFP36"]

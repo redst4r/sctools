@@ -6,30 +6,53 @@ import toolz
 import sctools.celltypes.panglaodb as panglaodb
 
 
-def build_marker_dict(adata):
+def build_marker_dict(adata, tissue):
     """
     my custom list of markers, partially based on panglaodb, partially on personal communication
     """
 
+    assert tissue in ['Gastric', 'Esophagus', 'Lung']
+
+    """
+    Gastric and esophagus have overlapping celltypes, so treat them as one.
+    Especially due to the metaplasia, where Esophagus starts to look like Gastric/Intestinal
+
+    Lung celtypes are different however!
+    """
+    organ_dict = {
+        'Gastic': ['Connective tissue', 'Immune system', 'GI tract', 'Blood', 'Vasculature', 'Smooth muscle', 'Epithelium'],
+        'Esophagus': ['Connective tissue', 'Immune system', 'GI tract', 'Blood', 'Vasculature', 'Smooth muscle', 'Epithelium'],
+        'Lung': ['Connective tissue', 'Immune system', 'Lungs', 'Blood', 'Vasculature', 'Smooth muscle', 'Epithelium']
+    }
+
     celltype_marker_dict = panglaodb.get_celltype_markers(
         sens=0.8, spec=0.8,
-        list_of_organs=['Connective tissue', 'Immune system',
-                        'GI tract', 'Blood', 'Vasculature',
-                        'Smooth muscle', 'Epithelium', 'Skin']
+        list_of_organs=organ_dict[tissue]
         )
 
     # now fix a few by hand and expert knowledge
-    celltype_marker_dict['Gastric chief cells'] = ['PGA4', 'PGA3', 'PGA5', 'PGC']
-    celltype_marker_dict['Enteroendocrine cells'].extend(['CHGA', 'CHGB'])
-    celltype_marker_dict['Parietal cells'] = ['ATP4A', 'ATP4B']
-    celltype_marker_dict['Endothelial cells'].append('PECAM1')
-    celltype_marker_dict['Goblet cells'] = ['MUC2','ITLN1', 'SPINK4']
-    celltype_marker_dict['Intestinal epithelial cells'] = ['CDX2']
-    celltype_marker_dict['Foveolar cells 1'] = ['MUC5AC', 'TFF1' ]
-    celltype_marker_dict['Foveolar cells 2'] = ['TFF1' ,'GKN1']
-    celltype_marker_dict['Mucus neck cells'] = ['TFF1' ,'MUC6']
-    celltype_marker_dict['MSC'] = ['EPHB2', 'SOX9','OLFM4','CD44','AXIN2', 'SOX4']
-    celltype_marker_dict['Paneth cells'] = ['DEFA5', 'DEFA6']
+    if tissue in ['Gastric', 'Esophagus']:
+        celltype_marker_dict['Gastric chief cells'] = ['PGA4', 'PGA3', 'PGA5', 'PGC']
+        celltype_marker_dict['Enteroendocrine cells'].extend(['CHGA', 'CHGB'])
+        celltype_marker_dict['Parietal cells'] = ['ATP4A', 'ATP4B']
+        celltype_marker_dict['Endothelial cells'].append('PECAM1')
+        celltype_marker_dict['Goblet cells'] = ['MUC2','ITLN1', 'SPINK4']
+        celltype_marker_dict['Intestinal epithelial cells'] = ['CDX2']
+        celltype_marker_dict['Foveolar cells 1'] = ['MUC5AC', 'TFF1' ]
+        celltype_marker_dict['Foveolar cells 2'] = ['TFF1' ,'GKN1']
+        celltype_marker_dict['Mucus neck cells'] = ['TFF1' ,'MUC6']
+        celltype_marker_dict['MSC'] = ['EPHB2', 'SOX9','OLFM4','CD44','AXIN2', 'SOX4']
+        celltype_marker_dict['Paneth cells'] = ['DEFA5', 'DEFA6']
+    else:
+        # these are from the Teichman/HCA paper
+        celltype_marker_dict['Basal epithelial'] = ['KRT5', 'TP63']
+        celltype_marker_dict['Ciliated'] = ['FOXJ1', 'KCTD12', 'PIFO']
+        celltype_marker_dict['Secretory/goblet_1'] = ['MUC5AC', 'KRT4', 'CD36']
+        celltype_marker_dict['Secretory/goblet_2'] = ['MUC5AC', 'CXCL10', 'IDO1', 'NOS2', 'IL19']
+        celltype_marker_dict['Aviolar-T2'] = ['SFTPC']
+        celltype_marker_dict['Aviolar-T2'] = ['AGER']
+        celltype_marker_dict['Club/Clara'] = ['MUC5AC', 'MUC5B']
+
 
     # delete a few that we dont see anyways
     del celltype_marker_dict['Platelets']

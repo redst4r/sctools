@@ -17,7 +17,7 @@ setup(name='sctools',
           'scipy',
           'pandas',
           'scanpy',
-          'plotnine'
-          # 'rnaseqtools'  # TODO turn this into a github dependency
+          'plotnine',
+          'rnaseqtools @git+https://github.com/redst4r/rnaseqtools'
           ],
       zip_safe=False)

@@ -152,7 +152,7 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100):
 
 def export_for_cellxgene(adata, annotations):
     # for Export we have to pull all the genes back into the adata.X!
-    _tmp = sc.AnnData(adata.raw.X, obs=adata.obs, var=adata.raw.var)
+    _tmp = sc.AnnData(adata.raw.X, obs=adata.obs.copy(), var=adata.raw.var.copy())
     _tmp.uns = adata.uns
     _tmp.obsm = adata.obsm
     _tmp.obs =  _tmp.obs[annotations]

@@ -20,7 +20,7 @@ def build_marker_dict(adata, tissue):
     Lung celtypes are different however!
     """
     organ_dict = {
-        'Gastic': ['Connective tissue', 'Immune system', 'GI tract', 'Blood', 'Vasculature', 'Smooth muscle', 'Epithelium'],
+        'Gastric': ['Connective tissue', 'Immune system', 'GI tract', 'Blood', 'Vasculature', 'Smooth muscle', 'Epithelium'],
         'Esophagus': ['Connective tissue', 'Immune system', 'GI tract', 'Blood', 'Vasculature', 'Smooth muscle', 'Epithelium'],
         'Lung': ['Connective tissue', 'Immune system', 'Lungs', 'Blood', 'Vasculature', 'Smooth muscle', 'Epithelium']
     }

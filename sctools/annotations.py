@@ -89,7 +89,14 @@ def annotate_qc_metrics(adata):
     ## some numbers on the cells
     MT_genes = [_ for _ in adata.var.index if _.startswith('MT-')]
     adata.obs['n_molecules'] = adata.X.sum(1).A.flatten() if is_sparse else adata.X.sum(1).flatten()
-    adata.obs['n_mito'] = adata[:,MT_genes].X.sum(1).A.flatten() if is_sparse else adata[:,MT_genes].X.sum(1).flatten()
+    
+    if len(MT_genes) > 0:
+        adata.obs['n_mito'] = adata[:,MT_genes].X.sum(1).A.flatten() if is_sparse else adata[:,MT_genes].X.sum(1).flatten()
+    else:
+        # in case the dat adoesnt contain a single mitochondrial gene. Unless we specifically filtered for this, 
+        # that shoul never happen!!
+        adata.obs['n_mito'] = 0
+
     adata.obs['percent_mito'] = adata.obs['n_mito'] / adata.obs['n_molecules']
     adata.obs['n_genes'] = (adata.X >0).sum(1).A.flatten()  if is_sparse else (adata.X >0).sum(1).flatten()
 

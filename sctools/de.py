@@ -132,8 +132,8 @@ def scanpy_DE_to_dataframe_fast(adata):
     # the df contains a mix of De for all grous
     # create on DF per group
     group_dfs = {}
-    for g in df['group'].unique():
-        tmp = df.query('group==@g').copy()
+    for g in df['groupname'].unique():
+        tmp = df.query('groupname==@g').copy()
         group_dfs[g] = tmp
 
     return group_dfs
@@ -203,8 +203,8 @@ def scanpy_DE_to_dataframe(adata):
     # the df contains a mix of De for all grous
     # create on DF per group
     group_dfs = {}
-    for g in df['group'].unique():
-        tmp = df.query('group==@g').copy()
+    for g in df['groupname'].unique():
+        tmp = df.query('groupname==@g').copy()
         group_dfs[g] = tmp
 
     return group_dfs

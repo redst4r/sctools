@@ -38,7 +38,6 @@ def annotate_cellcycle(adata):
     return adata
 
 
-
 def annotate_coding_genes(adata):
     """
     flags all coding genes in .var
@@ -46,6 +45,11 @@ def annotate_coding_genes(adata):
 
     this should be run on raw counts data
     """
+
+    if 'is_coding' in adata.var.columns:
+        print('Coding genes already annotated. skipping this!')
+        return adata
+
     df_biomart = biomart_query_all()
 
     def _is_coding(x):
@@ -65,7 +69,7 @@ def annotate_coding_genes(adata):
 
     df_coding = pd.DataFrame(df_biomart.groupby('hgnc_symbol')['transcript_biotype'].apply(_is_coding)).rename({'transcript_biotype': 'is_coding'}, axis=1)
 
-    _shared_genes = sorted(list(set(adata.var.index) & set(df_coding.index)))
+    # _shared_genes = sorted(list(set(adata.var.index) & set(df_coding.index)))
     # adata = adata[:, _shared_genes] # often some genes are not in df_biomart
     adata.var = adata.var.merge(df_coding, left_index=True, right_index=True, how='left')
     # adata.raw.var= adata.raw.var.merge(df_coding, left_index=True, right_index=True)
@@ -80,21 +84,21 @@ def annotate_coding_genes(adata):
 
 def annotate_qc_metrics(adata):
     """
-    annotate the number of molecules/UMI, mitochondrial genes, and genes expressed
-    to each cell
+    annotate the number of molecules/UMI, mitochondrial genes, and genes
+    expressed to each cell
 
     this should be run on raw count data
     """
     is_sparse = isinstance(adata.X, spmatrix)
-    ## some numbers on the cells
+    # some numbers on the cells
     MT_genes = [_ for _ in adata.var.index if _.startswith('MT-')]
     adata.obs['n_molecules'] = adata.X.sum(1).A.flatten() if is_sparse else adata.X.sum(1).flatten()
-    
+
     if len(MT_genes) > 0:
         adata.obs['n_mito'] = adata[:,MT_genes].X.sum(1).A.flatten() if is_sparse else adata[:,MT_genes].X.sum(1).flatten()
     else:
-        # in case the dat adoesnt contain a single mitochondrial gene. Unless we specifically filtered for this, 
-        # that shoul never happen!!
+        # in case the dat adoesnt contain a single mitochondrial gene.
+        # Unless we specifically filtered for this, that shoul never happen!!
         adata.obs['n_mito'] = 0
 
     adata.obs['percent_mito'] = adata.obs['n_mito'] / adata.obs['n_molecules']
@@ -110,9 +114,7 @@ def annotate_qc_metrics(adata):
     adata.obs['n_nuclear_mito'] = adata[:,nmg].X.sum(1).A.flatten() if is_sparse else adata[:,nmg].X.sum(1).flatten()
     adata.obs['percent_nuclear_mito'] = adata.obs['n_nuclear_mito'] / adata.obs['n_molecules']
 
-
     return adata
-
 
 
 nuclear_mito_genes = [

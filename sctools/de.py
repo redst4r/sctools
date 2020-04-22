@@ -5,7 +5,7 @@ from scipy import stats
 import pandas as pd
 import tqdm
 import plotnine as pn
-
+from scipy.sparse import spmatrix
 """
 tools for differential expression in scanpy
 """
@@ -101,6 +101,12 @@ def scanpy_DE_to_dataframe_fast(adata):
     for i in range(len(rank_dict['scores'])):
         # the items always come in pairs: up in group 1, up in group2
         # each of the following is of size: 1x(groups)
+        """
+        the storage format is kind of annoying:
+        Its n-tuples (n=number of groups) and a differen gene for each group
+        ('MTATP6P1', 'EEF1A1', 'HSP90AA1', 'HIST1H1E'),
+        ('MPO', 'TPT1', 'TUBA1B', 'HIST1H1C')
+        """
         s = rank_dict['scores'][i]
         n= rank_dict['names'][i]
         p= rank_dict['pvals'][i]
@@ -214,10 +220,14 @@ def gene_expression_to_flat_df(adata, genes, grouping_var, scale):
     # for c, genes in de_genes.items():
         for the_group in groups:
             ix_group = adata.obs[grouping_var] == the_group  # which condition the datapoint belongs to
-            X  = adata[:, the_gene].X.flatten()
-
+            X  = adata[:, the_gene].X
+            if isinstance(X, spmatrix):
+                X = X.A
+            X = X.flatten()
             #standard scaling
             if scale:
+                # this really scales the genes across groups,
+                # as we do the group selection on X only below!
                 X = X - X.mean()
                 X = X / X.std()
 
@@ -233,6 +243,8 @@ def gene_expression_to_flat_df(adata, genes, grouping_var, scale):
     flat_df = pd.concat(flat_df)
     return flat_df
 
+
+# TODO this is highly redundant with gene_expression_to_flat_df
 def de_adata_to_flat_df(adata, scale:bool, ngenes, qval_cutoff):
     _tmp = scanpy_DE_to_dataframe_fast(adata)
 
@@ -243,17 +255,20 @@ def de_adata_to_flat_df(adata, scale:bool, ngenes, qval_cutoff):
     # building a long dataframe with
     # cell_index, genename, expression, which_de_group
     flat_df = []
-
+    
     for c, genes in de_genes.items():
-        for g in genes:
-            _tmp_df = adata.obs[[group]]  # which condition the datapoint belongs to
-            X  = adata.raw[:, g].X
-
+        for g in genes: # de-genes for that group
+            X  = adata.raw[:, g].X  # thats the expression of a single gene all groups
+            
+            # annoying, sometimes is sparse sometimes its not!
+            if isinstance(X, spmatrix):
+                X = X.A
             #standard scaling
             if scale:
                 X = X - X.mean()
                 X = X / X.std()
-
+            
+            _tmp_df = adata.obs[[group]].copy() # which condition the datapoint belongs to
             _tmp_df['expression'] = X
             _tmp_df['gene'] = g
             _tmp_df['which_de_group'] = c # which group is this gene DE
@@ -286,7 +301,7 @@ def plot_de(adata, scale=True, mode='boxplot', ngenes=5, qval_cutoff=0.2):
     plot = \
     pn.ggplot(gg_df, pn.aes(x='factor(gene)', y='expression', fill=f'factor({group})'))\
       + geom_dict[mode]() \
-      + pn.facet_wrap('~which_de_group', scales='free_x') \
+      + pn.facet_wrap('~which_de_group', scales='free') \
       + pn.theme(axis_text_x=pn.element_text(rotation=90, hjust=1))
       # + pn.scale_y_log10() # pn.geom_violin() # + pn.scale_y_log10()
 

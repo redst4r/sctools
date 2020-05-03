@@ -3,10 +3,10 @@ import numpy as np
 import scanpy as sc
 from scipy.sparse import spmatrix
 from rnaseqtools.biomart_mapping import biomart_query_all
-
+from sctools.score_genes import score_genes_cell_cycle
 
 def get_cellcycle_genes():
-    cell_cycle_genes =[
+    cell_cycle_genes = [
         'MCM5', 'PCNA', 'TYMS', 'FEN1', 'MCM2', 'MCM4', 'RRM1', 'UNG', 'GINS2',
         'MCM6', 'CDCA7', 'DTL', 'PRIM1', 'UHRF1', 'MLF1IP', 'HELLS', 'RFC2',
         'RPA2', 'NASP', 'RAD51AP1', 'GMNN', 'WDR76', 'SLBP', 'CCNE2', 'UBR7',
@@ -34,7 +34,8 @@ def annotate_cellcycle(adata):
     s_genes, g2m_genes = get_cellcycle_genes()
     s_genes = [_ for _ in s_genes if _ in adata.var.index]
     g2m_genes = [_ for _ in g2m_genes if _ in adata.var.index]
-    sc.tl.score_genes_cell_cycle(adata, s_genes=s_genes, g2m_genes=g2m_genes)
+    # use my internal, memory saving method for now
+    score_genes_cell_cycle(adata, s_genes=s_genes, g2m_genes=g2m_genes)
     return adata
 
 

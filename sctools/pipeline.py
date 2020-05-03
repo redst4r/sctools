@@ -62,6 +62,7 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
     """
     # if verbose: print('annotating cell cycle')
     if annotate_cellcycle_flag:
+        if verbose: print('Annotating Cell cycle')
         adata = annotate_cellcycle(adata)
 
     if verbose:
@@ -88,7 +89,12 @@ def preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, 
     """
     filtering (coding/n_genes/n_umis/mito), annotations, but no transformations of the data
     """
+    if verbose:
+        print('annotating QC')
     adata = annotate_qc_metrics(adata)
+    
+    if verbose:
+        print('annotating and filtering for coding genes')
     adata = annotate_coding_genes(adata)
     adata = adata[:, adata.var.is_coding==True]
 

@@ -138,7 +138,7 @@ def postprocessing_michi_kallisto_recipe(adata, verbose=True):
     return adata
 
 
-def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100):
+def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, method='wilcoxon', min_in_group_fraction=0, max_out_group_fraction=1):
     """
     scanpy by default runs the differential expression on .raw.X, but also assumes
     logarithmized data. Otherwise, pvals come out wrong!
@@ -147,15 +147,36 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100):
 
     TODO this better be an atomic operation, otherwise the log-flag gets screwed up
     or stick it into a decorator!
+    
+    The filtering for fraction of cells expressing is a bit hacky atm. It relies on sc.tl.filter_rank_genes... which just sets genenames to nan instead of removing them
+    
+    
+    :param adata: AnnData object
+    :param groupby: .obs column denoting the grouping of differential expression
+    :param n_genes: number of DE genes to report at max
+    :param method: what statistical test to do, see sc.tl.rank_genes_groups for options
+    :param min_in_group_fraction: \in [0,1]. Additionally filter the DE genes: At least x% of cells must express this gene in the upregulated cluster. 
+    Prevents genes that are extremly high in a few cells from dominating the DE list. Useful for marker genes (every cell in a cluster should express that marker!)
+    :param max_out_group_fraction: similar, just force genes to be exclusively expressed in the cluster: Filter genes that have more then x% cells expressing it outside the cluster
     """
 
     assert not adata.uns['log_raw.X']
     adata.raw.X.data = np.log1p(adata.raw.X.data)
-    sc.tl.rank_genes_groups(adata, groupby=groupby, n_genes=n_genes)
+    sc.tl.rank_genes_groups(adata, groupby=groupby, n_genes=n_genes, method=method)
+    # undoing the log
     adata.raw.X.data = np.round(np.exp(adata.raw.X.data) - 1)
 
-
-
+    #filtering
+    sc.tl.filter_rank_genes_groups(adata,
+                                           log=False,  # since we undid the log!
+                                           key_added='rank_genes_groups_filtered',
+                                           min_in_group_fraction=min_in_group_fraction,
+                                           min_fold_change=0,  #not filteirng for fold_change
+                                           max_out_group_fraction=1) # not filetering for %expressing outside the cluster
+    # now make the filtered genes the default DE genes
+    adata.uns['rank_genes_groups'] = adata.uns['rank_genes_groups_filtered']
+    
+    
 def export_for_cellxgene(adata, annotations):
     # for Export we have to pull all the genes back into the adata.X!
     _tmp = sc.AnnData(adata.raw.X, obs=adata.obs.copy(), var=adata.raw.var.copy())

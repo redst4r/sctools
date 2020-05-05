@@ -1,7 +1,8 @@
 import scanpy as sc
 from sctools import annotate_qc_metrics, annotate_cellcycle, annotate_coding_genes
 import numpy as np
-
+import scrublet as scr
+import pandas as pd
 class Verbose(object):
     """
     context manager for verbose output around statements
@@ -17,7 +18,7 @@ class Verbose(object):
         if self.verbose:
             print(f'Done {self.msg}')
 
-def standard_processing(adata):
+def standard_processing(adata, detect_doublets=True):
     """
     Wrapper around `michi_kallisto_recipe()` with standardized values for
     QC cutoffs
@@ -35,7 +36,9 @@ def standard_processing(adata):
                                   percent_mito_cutoff=MITO_CUTOFF,
                                   annotate_cellcycle_flag=True,
                                   verbose=True)
-
+    
+    if detect_doublets:
+        adata = annotate_doublets(adata, groupby='samplename')
     
     differential_expression_michi_kallisto_recipe(adata, 
                                                   groupby='leiden', 
@@ -196,3 +199,29 @@ def export_for_cellxgene(adata, annotations):
     _tmp.obsm = adata.obsm
     _tmp.obs =  _tmp.obs[annotations]
     return _tmp
+
+
+
+def annotate_doublets(adata, groupby='samplename'):
+    doublet_vectors = []
+    for s in adata.obs[groupby].unique():
+        print(s)
+        b = adata[adata.obs[groupby]==s]
+        
+        if len(b) > 50:
+            scrub = scr.Scrublet(b.raw.X, expected_doublet_rate=0.06, sim_doublet_ratio=5)
+            doublet_scores, predicted_doublets = scrub.scrub_doublets(min_counts=2, 
+                                                                      min_cells=3, 
+                                                                      min_gene_variability_pctl=85, 
+                                                                      n_prin_comps=50)
+            scrub.plot_histogram();
+        else:
+            print(f'Warning: too few cells to determine doublets! {len(b)}')
+            doublet_scores = np.full(len(b), np.nan)
+            
+        doublet_vectors.append(pd.Series(data=doublet_scores, index=b.obs.index))
+
+    doublet_vectors = pd.concat(doublet_vectors)
+    adata.obs['doublet_score'] = doublet_vectors[adata.obs.index]
+    
+    return adata

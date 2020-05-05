@@ -26,13 +26,24 @@ def standard_processing(adata):
     VARIABLE_GENES = 4000
     MITO_CUTOFF = 0.4
 
+    DE_min = 0.25  # minimum fraction of cells that must express the gene in the cluster
+    DE_max = 1  # max % cells outside of the cluster that express the gene
     adata.raw = adata.copy()
     adata = michi_kallisto_recipe(adata,
                                   umi_cutoff=UMI_CUTOFF,
                                   n_top_genes=VARIABLE_GENES,
                                   percent_mito_cutoff=MITO_CUTOFF,
                                   annotate_cellcycle_flag=True,
-                                  verbose=True )
+                                  verbose=True)
+
+    
+    differential_expression_michi_kallisto_recipe(adata, 
+                                                  groupby='leiden', 
+                                                  n_genes=100, 
+                                                  method='wilcoxon', 
+                                                  min_in_group_fraction=DE_min, 
+                                                  max_out_group_fraction=DE_max)
+    
     return adata
 
 def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito_cutoff=1, annotate_cellcycle_flag=False, verbose=True):
@@ -172,8 +183,9 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, m
                                            key_added='rank_genes_groups_filtered',
                                            min_in_group_fraction=min_in_group_fraction,
                                            min_fold_change=0,  #not filteirng for fold_change
-                                           max_out_group_fraction=1) # not filetering for %expressing outside the cluster
+                                           max_out_group_fraction=max_out_group_fraction) # not filetering for %expressing outside the cluster
     # now make the filtered genes the default DE genes
+    adata.uns['rank_genes_groups_unfiltered'] = adata.uns['rank_genes_groups']
     adata.uns['rank_genes_groups'] = adata.uns['rank_genes_groups_filtered']
     
     

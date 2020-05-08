@@ -18,6 +18,8 @@ setup(name='sctools',
           'pandas',
           'scanpy',
           'plotnine',
-          'rnaseqtools @git+https://github.com/redst4r/rnaseqtools'
+          'rnaseqtools @git+https://github.com/redst4r/rnaseqtools',
+          'scrublet',
+          'harmonypy'
           ],
       zip_safe=False)

@@ -5,7 +5,7 @@ import numpy as np
 import scrublet as scr
 import pandas as pd
 import gc
-#import harmonypy as ha
+import harmonypy as ha
 
 
 class Verbose(object):
@@ -40,6 +40,7 @@ def standard_processing(adata, detect_doublets=True):
                                   n_top_genes=VARIABLE_GENES,
                                   percent_mito_cutoff=MITO_CUTOFF,
                                   annotate_cellcycle_flag=True,
+                                  harmony_correction='samplename',
                                   verbose=True)
 
     if detect_doublets:
@@ -53,7 +54,10 @@ def standard_processing(adata, detect_doublets=True):
                                                   max_out_group_fraction=DE_max)
     return adata
 
-def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito_cutoff=1, annotate_cellcycle_flag=False, verbose=True):
+def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito_cutoff=1, 
+                          annotate_cellcycle_flag=False, 
+                          harmony_correction=None,
+                          verbose=True):
 
     """
     filters for coding genes, adds QC, filters cells based on UMI, applies
@@ -91,7 +95,9 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
     # zheng17 log1p the .X data, but doesnt touch .raw.X!
     adata.uns['log_X'] = True
 
-    adata = postprocessing_michi_kallisto_recipe(adata, verbose)
+
+
+    adata = postprocessing_michi_kallisto_recipe(adata, harmony_correction, verbose)
 
     assert np.all(adata.raw.X.data== np.round(adata.raw.X.data)), ".raw.X got log'd!"
 
@@ -134,13 +140,29 @@ def preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, 
 
     return adata
 
-def postprocessing_michi_kallisto_recipe(adata, verbose=True):
+
+def postprocessing_michi_kallisto_recipe(adata, harmony_correction, verbose=True):
     """
-    doing PCA/UMAP etc
+    doing batch correction, PCA/UMAP etc
     """
     if verbose:
         print('PCA')
     sc.pp.pca(adata)
+
+    """
+    harmony batch correction if desired
+    this works on the PCA proejction
+    """
+    if harmony_correction:
+        if verbose: print('Harmony batch correction')
+        vars_use = [harmony_correction] # samplenames for harmony
+        assert harmony_correction in adata.obs.columns
+        # get out the PCA matrix
+        data_mat = np.array(adata.obsm['X_pca'])
+        # and harmonize
+        ho = ha.run_harmony(data_mat,  adata.obs, vars_use, max_iter_kmeans = 25)
+        adata.obsm['X_pca'] = np.transpose(ho.Z_corr)
+
     sc.pp.neighbors(adata)
     sc.tl.leiden(adata, resolution=1)
     sc.tl.louvain(adata)

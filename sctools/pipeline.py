@@ -1,8 +1,13 @@
 import scanpy as sc
-from sctools import annotate_qc_metrics, annotate_cellcycle, annotate_coding_genes
+from sctools import annotate_qc_metrics, annotate_coding_genes
+from sctools.annotations import annotate_cellcycle
 import numpy as np
 import scrublet as scr
 import pandas as pd
+import gc
+#import harmonypy as ha
+
+
 class Verbose(object):
     """
     context manager for verbose output around statements
@@ -36,17 +41,16 @@ def standard_processing(adata, detect_doublets=True):
                                   percent_mito_cutoff=MITO_CUTOFF,
                                   annotate_cellcycle_flag=True,
                                   verbose=True)
-    
+
     if detect_doublets:
         adata = annotate_doublets(adata, groupby='samplename')
-    
-    differential_expression_michi_kallisto_recipe(adata, 
-                                                  groupby='leiden', 
-                                                  n_genes=100, 
-                                                  method='wilcoxon', 
-                                                  min_in_group_fraction=DE_min, 
+
+    differential_expression_michi_kallisto_recipe(adata,
+                                                  groupby='leiden',
+                                                  n_genes=100,
+                                                  method='wilcoxon',
+                                                  min_in_group_fraction=DE_min,
                                                   max_out_group_fraction=DE_max)
-    
     return adata
 
 def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito_cutoff=1, annotate_cellcycle_flag=False, verbose=True):
@@ -78,15 +82,12 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
     if annotate_cellcycle_flag:
         if verbose: print('Annotating Cell cycle')
         adata = annotate_cellcycle(adata)
+        if verbose: print('Done: Annotating Cell cycle')
 
-    if verbose:
-        print('Zheng recipe')
-
-    # sc.pp.filter_genes(adata, min_counts=1)
-    # sc.pp.normalize_total(adata, key_added='n_counts_all')
-
+    if verbose: print('Zheng recipe')
     sc.pp.recipe_zheng17(adata, n_top_genes=n_top_genes, log=True, plot=True, copy=False)
 
+    if verbose: print('Done: Zheng recipe')
     # zheng17 log1p the .X data, but doesnt touch .raw.X!
     adata.uns['log_X'] = True
 
@@ -106,16 +107,17 @@ def preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, 
     if verbose:
         print('annotating QC')
     adata = annotate_qc_metrics(adata)
-    
+
     if verbose:
         print('annotating and filtering for coding genes')
     adata = annotate_coding_genes(adata)
-    adata = adata[:, adata.var.is_coding==True]
-
+    adata = adata[:, adata.var.is_coding==True].copy()  # copying to avoid getting a view, which has some issues when copying later
+    gc.collect()
     if verbose:
         print('filtering cells for UMI content')
     cells_before = adata.shape[0]
-    adata = adata[adata.obs.query('n_molecules>@umi_cutoff').index]
+    adata = adata[adata.obs.query('n_molecules>@umi_cutoff').index].copy() # copying to avoid getting a view, which has some issues when copying later
+    gc.collect()
     cells_after = adata.shape[0]
     if verbose:
         print(f'Cells: {cells_before} -> {cells_after}')
@@ -123,7 +125,9 @@ def preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, 
     if verbose:
         print('filtering cells for mito content')
     cells_before = adata.shape[0]
-    adata = adata[adata.obs.query('percent_mito<@percent_mito_cutoff').index]
+    adata = adata[adata.obs.query('percent_mito<@percent_mito_cutoff').index].copy() # copying to avoid getting a view, which has some issues when copying later
+    gc.collect()
+
     cells_after = adata.shape[0]
     if verbose:
         print(f'Cells: {cells_before} -> {cells_after}')
@@ -161,10 +165,10 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, m
 
     TODO this better be an atomic operation, otherwise the log-flag gets screwed up
     or stick it into a decorator!
-    
+
     The filtering for fraction of cells expressing is a bit hacky atm. It relies on sc.tl.filter_rank_genes... which just sets genenames to nan instead of removing them
-    
-    
+
+
     :param adata: AnnData object
     :param groupby: .obs column denoting the grouping of differential expression
     :param n_genes: number of DE genes to report at max
@@ -190,8 +194,8 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, m
     # now make the filtered genes the default DE genes
     adata.uns['rank_genes_groups_unfiltered'] = adata.uns['rank_genes_groups']
     adata.uns['rank_genes_groups'] = adata.uns['rank_genes_groups_filtered']
-    
-    
+
+
 def export_for_cellxgene(adata, annotations):
     # for Export we have to pull all the genes back into the adata.X!
     _tmp = sc.AnnData(adata.raw.X, obs=adata.obs.copy(), var=adata.raw.var.copy())
@@ -207,7 +211,7 @@ def annotate_doublets(adata, groupby='samplename'):
     for s in adata.obs[groupby].unique():
         print(s)
         b = adata[adata.obs[groupby]==s]
-        
+
         if len(b) > 50:
             scrub = scr.Scrublet(b.raw.X, expected_doublet_rate=0.06, sim_doublet_ratio=5)
             doublet_scores, predicted_doublets = scrub.scrub_doublets(min_counts=2, 
@@ -218,10 +222,10 @@ def annotate_doublets(adata, groupby='samplename'):
         else:
             print(f'Warning: too few cells to determine doublets! {len(b)}')
             doublet_scores = np.full(len(b), np.nan)
-            
+
         doublet_vectors.append(pd.Series(data=doublet_scores, index=b.obs.index))
 
     doublet_vectors = pd.concat(doublet_vectors)
     adata.obs['doublet_score'] = doublet_vectors[adata.obs.index]
-    
+
     return adata

@@ -199,7 +199,7 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, m
     Prevents genes that are extremly high in a few cells from dominating the DE list. Useful for marker genes (every cell in a cluster should express that marker!)
     :param max_out_group_fraction: similar, just force genes to be exclusively expressed in the cluster: Filter genes that have more then x% cells expressing it outside the cluster
     """
-
+    assert not adata.raw is None, "no data is present in the .raw storage. Differential expression will is only done on the .raw data!"
     assert not adata.uns['log_raw.X']
     adata.raw.X.data = np.log1p(adata.raw.X.data)
     sc.tl.rank_genes_groups(adata, groupby=groupby, n_genes=n_genes, method=method)

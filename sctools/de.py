@@ -10,6 +10,13 @@ from scipy.sparse import spmatrix
 tools for differential expression in scanpy
 """
 
+def get_de_genes(adata, cluster):
+    df = scanpy_DE_to_dataframe_fast(adata)[cluster]
+
+    genes = df['name']
+    genes = genes.replace({np.nan: 'nan'})
+    return " ".join(genes )
+
 def DEG_one_vs_all(Q):
 
     """
@@ -138,6 +145,26 @@ def scanpy_DE_to_dataframe_fast(adata):
 
     return group_dfs
 
+def split_adata_raw(adata, groupby):
+    """
+    splits the given adata into groups, expression matrix will be from the .raw.X,
+    also converts X tp csc-format (fast access to single columns)
+    """
+    
+    import scipy.sparse
+    #percompute the cluster datasets
+    # also change the raw matrix into sparse column format for fast indxein
+    prec_datasets = {} # gname: adata[adata.obs.query(f'{groupby}==@gname').index,:] for gname in groupnames}
+    groupnames = adata.obs[groupby].unique()
+    for gname in groupnames:
+        _tmp_adata = adata[adata.obs.query(f'{groupby}==@gname').index,:]
+
+        rawX = scipy.sparse.csc_matrix(_tmp_adata.raw.X)
+        prec_datasets[gname] = sc.AnnData(rawX,
+                                          obs=_tmp_adata.obs,
+                                          var=_tmp_adata.raw.var)
+    return prec_datasets
+
 
 def scanpy_DE_to_dataframe(adata):
     """
@@ -149,17 +176,7 @@ def scanpy_DE_to_dataframe(adata):
     groupby = adata.uns['rank_genes_groups']['params']['groupby']
     groupnames = adata.uns['rank_genes_groups']['names'].dtype.names
 
-    import scipy.sparse
-    #percompute the cluster datasets
-    # also change the raw matrix into sparse column format for fast indxein
-    prec_datasets = {} # gname: adata[adata.obs.query(f'{groupby}==@gname').index,:] for gname in groupnames}
-    for gname in groupnames:
-        _tmp_adata = adata[adata.obs.query(f'{groupby}==@gname').index,:]
-
-        rawX = scipy.sparse.csc_matrix(_tmp_adata.raw.X)
-        prec_datasets[gname] = sc.AnnData(rawX,
-                                          obs=_tmp_adata.obs,
-                                          var=_tmp_adata.raw.var)
+    prec_datasets = split_adata_raw(adata, groupby)
 
     gene_to_index_raw = {g:i for i,g in enumerate(adata.raw.var.index)}
 
@@ -180,6 +197,10 @@ def scanpy_DE_to_dataframe(adata):
             # (avoids genes that are upregulated strognly in a single cell but otherwise not expressed at all)
             gname = groupnames[j]
             genename = n[j]
+            
+            if not isinstance(genename, str) and np.isnan(genename):
+                continue # the min_percent expressing cells sets gene names to nan if they done fulfill the criterion 
+            
             adata_cluster = prec_datasets[gname]
             # X = adata_cluster[:, genename].X
             X = adata_cluster.X[:, gene_to_index_raw[genename]]
@@ -209,7 +230,7 @@ def scanpy_DE_to_dataframe(adata):
 
     return group_dfs
 
-def gene_expression_to_flat_df(adata, genes, grouping_var, scale):
+def gene_expression_to_flat_df(adata, genes, grouping_var, scale, use_raw):
     """
     scale: put all genes onto the same scale (mean0, std1)
     """
@@ -220,7 +241,10 @@ def gene_expression_to_flat_df(adata, genes, grouping_var, scale):
     # for c, genes in de_genes.items():
         for the_group in groups:
             ix_group = adata.obs[grouping_var] == the_group  # which condition the datapoint belongs to
-            X  = adata[:, the_gene].X
+            if use_raw:
+                X  = adata.raw[:, the_gene].X
+            else:
+                X  = adata[:, the_gene].X
             if isinstance(X, spmatrix):
                 X = X.A
             X = X.flatten()

@@ -43,7 +43,7 @@ def build_marker_dict(adata, tissue):
         celltype_marker_dict['Mucus neck cells'] = ['TFF1' ,'MUC6']
         celltype_marker_dict['MSC'] = ['EPHB2', 'SOX9','OLFM4','CD44','AXIN2', 'SOX4']
         celltype_marker_dict['Paneth cells'] = ['DEFA5', 'DEFA6']
-    else:
+    elif tissue == 'Lung':
         # these are from the Teichman/HCA paper
         celltype_marker_dict['Basal epithelial'] = ['KRT5', 'TP63']
         celltype_marker_dict['Ciliated'] = ['FOXJ1', 'KCTD12', 'PIFO']
@@ -52,12 +52,13 @@ def build_marker_dict(adata, tissue):
         celltype_marker_dict['Aviolar-T2'] = ['SFTPC']
         celltype_marker_dict['Aviolar-T2'] = ['AGER']
         celltype_marker_dict['Club/Clara'] = ['MUC5AC', 'MUC5B']
-
+    else:
+        raise ValueError(f'unknown tissue: {tissue}')
 
     # delete a few that we dont see anyways
     del celltype_marker_dict['Platelets']
     del celltype_marker_dict['Neutrophils']
-    del celltype_marker_dict['Pericytes'] # <-?? maybe should be included
+#     del celltype_marker_dict['Pericytes'] # <-?? maybe should be included
     del celltype_marker_dict['Adipocytes']
     del celltype_marker_dict['Eosinophils']
 
@@ -84,7 +85,7 @@ def dict_argmax_val(d):
     return max_key, max_val
 
 
-def annotate_celltypes_broad(adata, marker_dict, cluster_name='leiden', auc_cutoff=0.7, SIMPLE=True):
+def annotate_celltypes_broad(adata, marker_dict, cluster_name='leiden', auc_cutoff=0.7, SIMPLE=True, CELLTYPE_COLNAME = 'marker_based_celltype'):
     """
     Using a scoring system from Broad (cant find the paper ATM) to give each cell and celltype a score.
     To annotate a cluster of cells with a cell type, the AUC is used:
@@ -104,8 +105,7 @@ def annotate_celltypes_broad(adata, marker_dict, cluster_name='leiden', auc_cuto
     assert adata.raw, "works only on raw.X data"
 
     PREFIX = 'broad_score_'
-    CELLTYPE_COLNAME = 'marker_based_celltype'
-
+    
     # first, erase all previous marker annotations
     to_drop = [_ for _ in adata.obs.columns if _.startswith(PREFIX)] + [CELLTYPE_COLNAME]
     adata.obs.drop(to_drop, axis=1, inplace=True, errors='ignore')

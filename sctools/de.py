@@ -108,9 +108,9 @@ def scanpy_DE_to_dataframe_fast(adata):
         ('MPO', 'TPT1', 'TUBA1B', 'HIST1H1C')
         """
         s = rank_dict['scores'][i]
-        n= rank_dict['names'][i]
-        p= rank_dict['pvals'][i]
-        q= rank_dict['pvals_adj'][i]
+        n = rank_dict['names'][i]
+        p = rank_dict['pvals'][i]
+        q = rank_dict['pvals_adj'][i]
         fc = rank_dict['logfoldchanges'][i]
 
         for j in range(len(s)): # iterationg over all groups, adding DE of group vs rest

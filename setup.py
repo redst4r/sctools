@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(name='sctools',
       version=0.1,
@@ -9,7 +9,7 @@ setup(name='sctools',
       maintainer_email='redst4r@web.de',
       license='GNU GPL 3',
       keywords='scanpy, scrnaseq',
-      packages=['sctools'],
+      packages=find_packages(),
       install_requires=[
           'toolz',
           'numpy',

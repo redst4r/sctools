@@ -26,7 +26,7 @@ class Verbose(object):
 def standard_processing(adata, detect_doublets=True):
     """
     Wrapper around `michi_kallisto_recipe()` with standardized values for
-    QC cutoffs
+    QC cutoffs, does Harmony correction and doublet detection!
     """
     UMI_CUTOFF = 1000
     VARIABLE_GENES = 4000
@@ -154,14 +154,18 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, verbose=True
     this works on the PCA proejction
     """
     if harmony_correction:
-        if verbose: print('Harmony batch correction')
-        vars_use = [harmony_correction] # samplenames for harmony
-        assert harmony_correction in adata.obs.columns
-        # get out the PCA matrix
-        data_mat = np.array(adata.obsm['X_pca'])
-        # and harmonize
-        ho = ha.run_harmony(data_mat,  adata.obs, vars_use, max_iter_kmeans = 25)
-        adata.obsm['X_pca'] = np.transpose(ho.Z_corr)
+        n_batches = len(adata.obs[harmony_correction].unique())
+        # if there's only a single sample, no batch correction needed
+        # actually, harmony crashes with some error if you run it on a single batch (harmonypy 0.0.4)
+        if n_batches > 1:
+            if verbose: print('Harmony batch correction')
+            vars_use = [harmony_correction] # samplenames for harmony
+            assert harmony_correction in adata.obs.columns
+            # get out the PCA matrix
+            data_mat = np.array(adata.obsm['X_pca'])
+            # and harmonize
+            ho = ha.run_harmony(data_mat,  adata.obs, vars_use, max_iter_kmeans = 25)
+            adata.obsm['X_pca'] = np.transpose(ho.Z_corr)
 
     sc.pp.neighbors(adata)
     sc.tl.leiden(adata, resolution=1)

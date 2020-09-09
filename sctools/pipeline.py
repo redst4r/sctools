@@ -232,7 +232,7 @@ def export_for_cellxgene(adata, annotations):
 
 
 
-def annotate_doublets(adata, groupby='samplename'):
+def annotate_doublets(adata, groupby='samplename', PLOTTING=False):
     doublet_vectors = []
     for s in adata.obs[groupby].unique():
         print(s)
@@ -244,7 +244,8 @@ def annotate_doublets(adata, groupby='samplename'):
                                                                       min_cells=3, 
                                                                       min_gene_variability_pctl=85, 
                                                                       n_prin_comps=50)
-            scrub.plot_histogram();
+            if PLOTTING:
+                scrub.plot_histogram();
         else:
             print(f'Warning: too few cells to determine doublets! {len(b)}')
             doublet_scores = np.full(len(b), np.nan)

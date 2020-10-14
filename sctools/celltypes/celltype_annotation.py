@@ -11,7 +11,7 @@ def build_marker_dict(adata, tissue):
     my custom list of markers, partially based on panglaodb, partially on personal communication
     """
 
-    assert tissue in ['Gastric', 'Esophagus', 'Lung']
+    assert tissue in ['Gastric', 'Esophagus', 'Lung'], f"Tissue {tissue} unknown. Should be Gastric, Esophagus or Lung"
 
     """
     Gastric and esophagus have overlapping celltypes, so treat them as one.
@@ -36,12 +36,12 @@ def build_marker_dict(adata, tissue):
         celltype_marker_dict['Enteroendocrine cells'].extend(['CHGA', 'CHGB'])
         celltype_marker_dict['Parietal cells'] = ['ATP4A', 'ATP4B']
         celltype_marker_dict['Endothelial cells'].append('PECAM1')
-        celltype_marker_dict['Goblet cells'] = ['MUC2','ITLN1', 'SPINK4']
+        celltype_marker_dict['Goblet cells'] = ['MUC2', 'ITLN1', 'SPINK4']
         celltype_marker_dict['Intestinal epithelial cells'] = ['CDX2']
         celltype_marker_dict['Foveolar cells 1'] = ['MUC5AC', 'TFF1' ]
-        celltype_marker_dict['Foveolar cells 2'] = ['TFF1' ,'GKN1']
-        celltype_marker_dict['Mucus neck cells'] = ['TFF1' ,'MUC6']
-        celltype_marker_dict['MSC'] = ['EPHB2', 'SOX9','OLFM4','CD44','AXIN2', 'SOX4']
+        celltype_marker_dict['Foveolar cells 2'] = ['TFF1', 'GKN1']
+        celltype_marker_dict['Mucus neck cells'] = ['TFF1', 'MUC6']
+        celltype_marker_dict['MSC'] = ['EPHB2', 'SOX9', 'OLFM4', 'CD44', 'AXIN2', 'SOX4']
         celltype_marker_dict['Paneth cells'] = ['DEFA5', 'DEFA6']
     elif tissue == 'Lung':
         # these are from the Teichman/HCA paper
@@ -62,7 +62,7 @@ def build_marker_dict(adata, tissue):
     del celltype_marker_dict['Adipocytes']
     del celltype_marker_dict['Eosinophils']
 
-    #filter out all genes that we dont measure in adata
+    # filter out all genes that we dont measure in adata
     celltype_marker_dict = toolz.valmap(lambda v: [_ for _ in v if _ in adata.raw.var_names], celltype_marker_dict)
 
     empty_celltypes = [k for k,v in celltype_marker_dict.items() if len(v) == 0]
@@ -74,11 +74,12 @@ def build_marker_dict(adata, tissue):
 
     return celltype_marker_dict
 
+
 def dict_argmax_val(d):
     "returns the key with the biggest value"
     max_val = -np.inf
     max_key = None
-    for k,v in d.items():
+    for k, v in d.items():
         if v > max_val:
             max_key = k
             max_val = v
@@ -105,7 +106,7 @@ def annotate_celltypes_broad(adata, marker_dict, cluster_name='leiden', auc_cuto
     assert adata.raw, "works only on raw.X data"
 
     PREFIX = 'broad_score_'
-    
+
     # first, erase all previous marker annotations
     to_drop = [_ for _ in adata.obs.columns if _.startswith(PREFIX)] + [CELLTYPE_COLNAME]
     adata.obs.drop(to_drop, axis=1, inplace=True, errors='ignore')
@@ -118,7 +119,7 @@ def annotate_celltypes_broad(adata, marker_dict, cluster_name='leiden', auc_cuto
         if len(markers) == 1:
             metagene = adata.raw.obs_vector(markers[0])
         else:
-            metagene = np.array(adata.raw[:,markers].X.mean(1)).flatten()
+            metagene = np.array(adata.raw[:, markers].X.mean(1)).flatten()
 
         s = np.log(1e-5 + 10**4 * metagene/mol_per_cell)
         adata.obs[f'{PREFIX}{celltype}'] = s
@@ -130,25 +131,25 @@ def annotate_celltypes_broad(adata, marker_dict, cluster_name='leiden', auc_cuto
     for cl in tqdm.tqdm(adata.obs[cluster_name].unique()):
         celltypes = marker_dict.keys()
 
-        aucs= {}
+        aucs = {}
         for celltype in celltypes:
-            labels = adata.obs[cluster_name]==cl
+            labels = adata.obs[cluster_name] == cl
 
             if SIMPLE:
                 scores = adata.obs[f'{PREFIX}{celltype}']
             else:
                 from sklearn.ensemble import RandomForestClassifier
                 cls = RandomForestClassifier(n_estimators=50, oob_score=True)
-                x = adata.raw[:,marker_dict[celltype]].X
+                x = adata.raw[:, marker_dict[celltype]].X
 
                 if not isinstance(x, np.ndarray):
                     x = x.A
 
-                if x.ndim==1:
-                    x = x.reshape(-1,1)
+                if x.ndim == 1:
+                    x = x.reshape(-1, 1)
 
                 cls.fit(x, labels)
-                scores = cls.oob_decision_function_[:,1]
+                scores = cls.oob_decision_function_[:, 1]
 
             a = roc_auc_score(labels, scores)
             aucs[celltype] = a
@@ -161,7 +162,7 @@ def annotate_celltypes_broad(adata, marker_dict, cluster_name='leiden', auc_cuto
             print(f'couldnt assign cluster {cl}; best AUC only {argmax_auc}')
             cluster_celltype_mapping[cl] = 'unknown'
 
-        aucs['cluster'] =cl # for the dataframe, also annotate the cluster we're looking at
+        aucs['cluster'] = cl  # for the dataframe, also annotate the cluster we're looking at
         df_cluster_celltype.append(aucs)
     df_cluster_celltype = pd.DataFrame(df_cluster_celltype).set_index('cluster').sort_index()
 

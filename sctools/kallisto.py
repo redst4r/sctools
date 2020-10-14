@@ -5,7 +5,7 @@ import pandas as pd
 
 def annotate_gene_symbols(Q):
 
-    df_biomart=biomart_mapping.biomart_query_all()
+    df_biomart = biomart_mapping.biomart_query_all()
 
     """
     sometimes the ensembl_gene_id_version doesnt match up with what kallisto puts down
@@ -44,7 +44,8 @@ def annotate_gene_symbols(Q):
     Q.var_names_make_unique()
     return Q
 
-def load_from_kallisto(folder:str, kallisto_prefix='genecount'):
+
+def load_from_kallisto(folder: str, kallisto_prefix='genecount'):
     """
     kallisto_prefix: usually the kallisto files are named
     - genecount.mtx
@@ -53,20 +54,18 @@ def load_from_kallisto(folder:str, kallisto_prefix='genecount'):
 
     but we can change that prefix
     """
-    mtx_file =  f'{folder}/{kallisto_prefix}.mtx'
-    obs_file =  f'{folder}/{kallisto_prefix}.barcodes.txt'
-    var_file =  f'{folder}/{kallisto_prefix}.genes.txt'
+    mtx_file = f'{folder}/{kallisto_prefix}.mtx'
+    obs_file = f'{folder}/{kallisto_prefix}.barcodes.txt'
+    var_file = f'{folder}/{kallisto_prefix}.genes.txt'
     Q = sc.read_mtx(mtx_file)
     obs = pd.read_csv(obs_file, header=None, index_col=0)
     var = pd.read_csv(var_file, header=None, index_col=0)
-    
-    obs.index.name = 'CB' # needed for anndata>=0.7 which doesnt allow int as name
-    var.index.name = None # needed for anndata>=0.7 which doesnt allow int as name
 
-    
+    obs.index.name = 'CB'  # needed for anndata>=0.7 which doesnt allow int as name
+    var.index.name = None  # needed for anndata>=0.7 which doesnt allow int as name
+
     Q.obs = obs
     Q.var = var
 
     Q = annotate_gene_symbols(Q)
     return Q
-

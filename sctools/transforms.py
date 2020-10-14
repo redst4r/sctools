@@ -77,7 +77,7 @@ def adata_merge(adatas, security_check=True, verbose=True):
         assert all(reference_var.index == a.var.index) , "indices differ!"
 
         if security_check:  # also check that the entire var-dataframe matches exactly (sometimes doesnt due to different ensebml IDs versions)
-            if not np.all(a.var == reference_var.var):
+            if not np.all(a.var == reference_var):
                 # chekc if the mismatches are Nan
                 for i, j in zip(*np.where(a.var != reference_var)):
                     assert np.isnan(a.var.values[i, j]), f"{i},{j}, {a.var.loc[i,j]}"

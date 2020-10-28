@@ -23,6 +23,7 @@ class Verbose(object):
         if self.verbose:
             print(f'Done {self.msg}')
 
+
 def standard_processing(adata, detect_doublets=True):
     """
     Wrapper around `michi_kallisto_recipe()` with standardized values for
@@ -54,8 +55,9 @@ def standard_processing(adata, detect_doublets=True):
                                                   max_out_group_fraction=DE_max)
     return adata
 
-def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito_cutoff=1, 
-                          annotate_cellcycle_flag=False, 
+
+def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito_cutoff=1,
+                          annotate_cellcycle_flag=True,
                           harmony_correction=None,
                           verbose=True):
 
@@ -68,10 +70,10 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
 
     # make sure we get an unprocessed adata!
     assert adata.raw, ".raw does not exist!"
-    assert np.all(adata.X.data== np.round(adata.X.data)), ".X must be ints/counts (maybe log1p'd?)"
-    assert np.all(adata.raw.X.data== np.round(adata.raw.X.data)), ".raw.X must be ints/counts (maybe log1p'd?)"
+    assert np.all(adata.X.data == np.round(adata.X.data)), ".X must be ints/counts (maybe log1p'd?)"
+    assert np.all(adata.raw.X.data == np.round(adata.raw.X.data)), ".raw.X must be ints/counts (maybe log1p'd?)"
 
-    adata.uns['log_X'] = False # keep track of whats logarithmized or not
+    adata.uns['log_X'] = False  # keep track of whats logarithmized or not
     adata.uns['log_raw.X'] = False
     adata = preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, verbose=True)
 
@@ -95,12 +97,9 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
     # zheng17 log1p the .X data, but doesnt touch .raw.X!
     adata.uns['log_X'] = True
 
-
-
     adata = postprocessing_michi_kallisto_recipe(adata, harmony_correction, verbose)
 
-    assert np.all(adata.raw.X.data== np.round(adata.raw.X.data)), ".raw.X got log'd!"
-
+    assert np.all(adata.raw.X.data == np.round(adata.raw.X.data)), ".raw.X got log'd!"
 
     return adata
 
@@ -117,12 +116,12 @@ def preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, 
     if verbose:
         print('annotating and filtering for coding genes')
     adata = annotate_coding_genes(adata)
-    adata = adata[:, adata.var.is_coding==True].copy()  # copying to avoid getting a view, which has some issues when copying later
+    adata = adata[:, adata.var.is_coding == True].copy()  # copying to avoid getting a view, which has some issues when copying later
     gc.collect()
     if verbose:
         print('filtering cells for UMI content')
     cells_before = adata.shape[0]
-    adata = adata[adata.obs.query('n_molecules>@umi_cutoff').index].copy() # copying to avoid getting a view, which has some issues when copying later
+    adata = adata[adata.obs.query('n_molecules>@umi_cutoff').index].copy()  # copying to avoid getting a view, which has some issues when copying later
     gc.collect()
     cells_after = adata.shape[0]
     if verbose:
@@ -131,7 +130,7 @@ def preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, 
     if verbose:
         print('filtering cells for mito content')
     cells_before = adata.shape[0]
-    adata = adata[adata.obs.query('percent_mito<@percent_mito_cutoff').index].copy() # copying to avoid getting a view, which has some issues when copying later
+    adata = adata[adata.obs.query('percent_mito<@percent_mito_cutoff').index].copy()  # copying to avoid getting a view, which has some issues when copying later
     gc.collect()
 
     cells_after = adata.shape[0]
@@ -182,7 +181,7 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, verbose=True
     return adata
 
 
-def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, method='wilcoxon', min_in_group_fraction=0, max_out_group_fraction=1):
+def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, method='wilcoxon', min_in_group_fraction=0, max_out_group_fraction=1, use_raw=True):
     """
     scanpy by default runs the differential expression on .raw.X, but also assumes
     logarithmized data. Otherwise, pvals come out wrong!
@@ -199,7 +198,7 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, m
     :param groupby: .obs column denoting the grouping of differential expression
     :param n_genes: number of DE genes to report at max
     :param method: what statistical test to do, see sc.tl.rank_genes_groups for options
-    :param min_in_group_fraction: \in [0,1]. Additionally filter the DE genes: At least x% of cells must express this gene in the upregulated cluster. 
+    :param min_in_group_fraction: \in [0,1]. Additionally filter the DE genes: At least x% of cells must express this gene in the upregulated cluster.
     Prevents genes that are extremly high in a few cells from dominating the DE list. Useful for marker genes (every cell in a cluster should express that marker!)
     :param max_out_group_fraction: similar, just force genes to be exclusively expressed in the cluster: Filter genes that have more then x% cells expressing it outside the cluster
     """
@@ -231,7 +230,6 @@ def export_for_cellxgene(adata, annotations):
     return _tmp
 
 
-
 def annotate_doublets(adata, groupby='samplename', PLOTTING=False):
     doublet_vectors = []
     for s in adata.obs[groupby].unique():
@@ -240,9 +238,9 @@ def annotate_doublets(adata, groupby='samplename', PLOTTING=False):
 
         if len(b) > 50:
             scrub = scr.Scrublet(b.raw.X, expected_doublet_rate=0.06, sim_doublet_ratio=5)
-            doublet_scores, predicted_doublets = scrub.scrub_doublets(min_counts=2, 
-                                                                      min_cells=3, 
-                                                                      min_gene_variability_pctl=85, 
+            doublet_scores, predicted_doublets = scrub.scrub_doublets(min_counts=2,
+                                                                      min_cells=3,
+                                                                      min_gene_variability_pctl=85,
                                                                       n_prin_comps=50)
             if PLOTTING:
                 scrub.plot_histogram();

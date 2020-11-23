@@ -57,15 +57,26 @@ def load_from_kallisto(folder: str, kallisto_prefix='genecount'):
     mtx_file = f'{folder}/{kallisto_prefix}.mtx'
     obs_file = f'{folder}/{kallisto_prefix}.barcodes.txt'
     var_file = f'{folder}/{kallisto_prefix}.genes.txt'
-    Q = sc.read_mtx(mtx_file)
-    obs = pd.read_csv(obs_file, header=None, index_col=0)
-    var = pd.read_csv(var_file, header=None, index_col=0)
 
+    Q = _load_kallisto_to_adata(mtx_file, var_file, obs_file, metricsfile=None)
+    Q = annotate_gene_symbols(Q)
+    return Q
+
+
+def _load_kallisto_to_adata(matrixfile, genefile, bcfile, metricsfile=None):
+    """
+    basic form of loading kallisto files into anndata.AnnData objects
+    - note that this does NOT annotate the genes
+    """
+    _tmp = sc.read_mtx(matrixfile)
+    obs = pd.read_csv(bcfile,   header=None, index_col=0)
+    var = pd.read_csv(genefile, header=None, index_col=0)
     obs.index.name = 'CB'  # needed for anndata>=0.7 which doesnt allow int as name
     var.index.name = None  # needed for anndata>=0.7 which doesnt allow int as name
 
-    Q.obs = obs
-    Q.var = var
-
-    Q = annotate_gene_symbols(Q)
-    return Q
+    _tmp.obs = obs
+    _tmp.var = var
+    if metricsfile:
+        metric_dict = pd.read_json(metricsfile, orient='columns', typ='series').to_dict()
+        _tmp.uns['kallisto_metrics'] = metric_dict
+    return _tmp

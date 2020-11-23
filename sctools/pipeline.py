@@ -205,7 +205,7 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, m
     assert not adata.raw is None, "no data is present in the .raw storage. Differential expression will is only done on the .raw data!"
     assert not adata.uns['log_raw.X']
     adata.raw.X.data = np.log1p(adata.raw.X.data)
-    sc.tl.rank_genes_groups(adata, groupby=groupby, n_genes=n_genes, method=method)
+    sc.tl.rank_genes_groups(adata, groupby=groupby, n_genes=n_genes, method=method, use_raw=use_raw)
     # undoing the log
     adata.raw.X.data = np.round(np.exp(adata.raw.X.data) - 1)
 

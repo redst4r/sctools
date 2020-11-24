@@ -56,25 +56,40 @@ def groupby_rows(adata, groupby_field:str, aggr_fun):
     return adata_aggr
 
 
-def adata_merge(adatas, security_check=True, verbose=True):
+def adata_merge(adatas, security_check=True, verbose=True, memory_save=False):
     "merging the datasets, assuming the .var are identical"
 
     assert isinstance(adatas, list), "adatas hsa to be supplied as list!"
 
     # TODO get rid of this custom code
-    for a in adatas:
-        a.var.drop(['_id', '_score', 'notfound'], inplace=True, axis=1, errors='ignore') # ignore if droppig non-existing fields
-        if 'symbol' in a.var:
-            a.var['symbol'].replace({np.nan: 'Nan'}, inplace=True)
+    # for a in adatas:
+    #     a.var.drop(['_id', '_score', 'notfound'], inplace=True, axis=1, errors='ignore') # ignore if droppig non-existing fields
+    #     if 'symbol' in a.var:
+    #         a.var['symbol'].replace({np.nan: 'Nan'}, inplace=True)
 
     # make sure the columns of all datasets are the same
     # sort genes alphabetically, so that each adat, has the same order
-    adatas = [a[:, a.var.sort_index().index] for a in adatas]
+    if verbose:
+        print('sorting genes alphabetically')
 
+    # warning: this creates a copy of the entire adatas list
+    # adatas = [a[:, a.var.sort_index().index] for a in adatas]
+
+    # more clever: sort in place. warning: this has a side effect outside of the function
+    # bu changing the list `adatas`
+    for i in range(len(adatas)):
+        ix = adatas[i].var.sort_index().index
+        adatas[i] = adatas[i][:, ix]
+
+    if verbose:
+        print('done sorting')
+
+    if verbose:
+        print('ensuring compatibility')
     reference_var = adatas[0].var
     for a in adatas:
         # either equal or both nan
-        assert all(reference_var.index == a.var.index) , "indices differ!"
+        assert all(reference_var.index == a.var.index), "indices differ!"
 
         if security_check:  # also check that the entire var-dataframe matches exactly (sometimes doesnt due to different ensebml IDs versions)
             if not np.all(a.var == reference_var):
@@ -83,9 +98,31 @@ def adata_merge(adatas, security_check=True, verbose=True):
                     assert np.isnan(a.var.values[i, j]), f"{i},{j}, {a.var.loc[i,j]}"
                     assert np.isnan(reference_var.values[i, j])
 
-    # cannot concat if the .var dont match between adata objects
+    if verbose:
+        print('done ensuring compatibility')
 
-    q = adatas[0].concatenate(adatas[1:])
+    """
+    for huge numbers of adata, it makes more sense to concat and immediately
+    remove the single adata object from memory!
+    Note that this ALTERS the adatas-list passed as argument
+    """
+#     print(f'saving memory {memory_save}')
+
+    if memory_save:
+        print('saving memory')
+        q = adatas.pop()
+        counter = 0
+        while len(adatas) > 0:
+            _a = adatas.pop()
+            q = q.concatenate(_a)
+            import gc
+            gc.collect()
+            counter+=1
+            print(f'Merging: {counter}/{len(adatas)}')
+        print('Adatas', adatas)
+
+    else:
+        q = adatas[0].concatenate(adatas[1:])
 
     q.var = reference_var.copy()
     return q

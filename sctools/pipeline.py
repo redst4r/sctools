@@ -24,14 +24,13 @@ class Verbose(object):
             print(f'Done {self.msg}')
 
 
-def standard_processing(adata, detect_doublets=True):
+def standard_processing(adata, detect_doublets=True, MITO_CUTOFF=0.4):
     """
     Wrapper around `michi_kallisto_recipe()` with standardized values for
     QC cutoffs, does Harmony correction and doublet detection!
     """
     UMI_CUTOFF = 1000
     VARIABLE_GENES = 4000
-    MITO_CUTOFF = 0.4
 
     DE_min = 0.25  # minimum fraction of cells that must express the gene in the cluster
     DE_max = 1  # max % cells outside of the cluster that express the gene

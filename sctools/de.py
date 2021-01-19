@@ -10,12 +10,14 @@ from scipy.sparse import spmatrix
 tools for differential expression in scanpy
 """
 
+
 def get_de_genes(adata, cluster):
     df = scanpy_DE_to_dataframe_fast(adata)[cluster]
 
     genes = df['name']
     genes = genes.replace({np.nan: 'nan'})
     return " ".join(genes )
+
 
 def DEG_one_vs_all(Q):
 
@@ -77,7 +79,6 @@ def DEG_one_vs_all_aggregate(de):
     df_all_siginificant = []
     groups = de.group1.unique()
     for cl in tqdm.tqdm(groups):
-    #     print(cl)
         tmp1 = de.query('group1==@cl')  # all tests involving cluster cl
         # see wichi genes had significant tests across all clusters
         # problem is: we already filtered some genes out in `DEG_one_vs_all`, hence not all groups will be present
@@ -90,7 +91,6 @@ def DEG_one_vs_all_aggregate(de):
         df_all_siginificant.extend([{'group': cl, 'name': _, 'pval': max_pval[_]} for _ in all_significant])
     df_all_siginificant = pd.DataFrame(df_all_siginificant)
     return df_all_siginificant
-
 
 
 def scanpy_DE_to_dataframe_fast(adata):
@@ -120,16 +120,16 @@ def scanpy_DE_to_dataframe_fast(adata):
         q = rank_dict['pvals_adj'][i]
         fc = rank_dict['logfoldchanges'][i]
 
-        for j in range(len(s)): # iterationg over all groups, adding DE of group vs rest
+        for j in range(len(s)):  # iterationg over all groups, adding DE of group vs rest
             gname = groupnames[j]
             genename = n[j]
-            tmp  = {'score': s[j],
+            tmp = { 'score': s[j],
                     'name': genename,
                     'pval': p[j],
                     'qval': q[j],
                     'logfoldchange': fc[j],
                     # 'symbol': adata.var.loc[genename].name, # ['symbol'],
-                    'symbol': genename, # ['symbol'],
+                    'symbol': genename,  # ['symbol'],
                     'group': j,
                     'groupname': gname
                     }
@@ -145,16 +145,17 @@ def scanpy_DE_to_dataframe_fast(adata):
 
     return group_dfs
 
+
 def split_adata_raw(adata, groupby):
     """
     splits the given adata into groups, expression matrix will be from the .raw.X,
     also converts X tp csc-format (fast access to single columns)
     """
-    
+
     import scipy.sparse
-    #percompute the cluster datasets
+    # percompute the cluster datasets
     # also change the raw matrix into sparse column format for fast indxein
-    prec_datasets = {} # gname: adata[adata.obs.query(f'{groupby}==@gname').index,:] for gname in groupnames}
+    prec_datasets = {}  # gname: adata[adata.obs.query(f'{groupby}==@gname').index,:] for gname in groupnames}
     groupnames = adata.obs[groupby].unique()
     for gname in groupnames:
         _tmp_adata = adata[adata.obs.query(f'{groupby}==@gname').index,:]
@@ -197,10 +198,10 @@ def scanpy_DE_to_dataframe(adata):
             # (avoids genes that are upregulated strognly in a single cell but otherwise not expressed at all)
             gname = groupnames[j]
             genename = n[j]
-            
+
             if not isinstance(genename, str) and np.isnan(genename):
-                continue # the min_percent expressing cells sets gene names to nan if they done fulfill the criterion 
-            
+                continue # the min_percent expressing cells sets gene names to nan if they done fulfill the criterion
+
             adata_cluster = prec_datasets[gname]
             # X = adata_cluster[:, genename].X
             X = adata_cluster.X[:, gene_to_index_raw[genename]]
@@ -230,6 +231,40 @@ def scanpy_DE_to_dataframe(adata):
 
     return group_dfs
 
+
+def gene_expression_to_flat_df_NEW(adata, genes, additional_vars, scale, use_raw):
+    """
+    scale: put all genes onto the same scale (mean0, std1)
+    """
+    flat_df = []
+
+    for the_gene in genes:
+        if use_raw:
+            X = adata.raw[:, the_gene].X
+        else:
+            X = adata[:, the_gene].X
+        if isinstance(X, spmatrix):
+            X = X.A
+        X = X.flatten()
+        # standard scaling
+        if scale:
+            # this really scales the genes across groups,
+            # as we do the group selection on X only below!
+            X = X - X.mean()
+            X = X / X.std()
+
+        _tmp_df = pd.DataFrame()
+        _tmp_df['expression'] = X
+        _tmp_df['gene'] = the_gene
+        for v in additional_vars:
+            _tmp_df[v] = adata.obs[v].values
+
+        flat_df.append(_tmp_df)
+
+    flat_df = pd.concat(flat_df)
+    return flat_df
+
+
 def gene_expression_to_flat_df(adata, genes, grouping_var, scale, use_raw):
     """
     scale: put all genes onto the same scale (mean0, std1)
@@ -238,25 +273,24 @@ def gene_expression_to_flat_df(adata, genes, grouping_var, scale, use_raw):
     flat_df = []
 
     for the_gene in genes:
-    # for c, genes in de_genes.items():
         for the_group in groups:
             ix_group = adata.obs[grouping_var] == the_group  # which condition the datapoint belongs to
             if use_raw:
-                X  = adata.raw[:, the_gene].X
+                X = adata.raw[:, the_gene].X
             else:
-                X  = adata[:, the_gene].X
+                X = adata[:, the_gene].X
             if isinstance(X, spmatrix):
                 X = X.A
             X = X.flatten()
-            #standard scaling
+            # standard scaling
             if scale:
                 # this really scales the genes across groups,
                 # as we do the group selection on X only below!
                 X = X - X.mean()
                 X = X / X.std()
 
-            X  = X[ix_group]
-            
+            X = X[ix_group]
+
             _tmp_df = pd.DataFrame()
             _tmp_df['expression'] = X
             _tmp_df['gene'] = the_gene
@@ -279,28 +313,29 @@ def de_adata_to_flat_df(adata, scale:bool, ngenes, qval_cutoff):
     # building a long dataframe with
     # cell_index, genename, expression, which_de_group
     flat_df = []
-    
+
     for c, genes in de_genes.items():
-        for g in genes: # de-genes for that group
-            X  = adata.raw[:, g].X  # thats the expression of a single gene all groups
-            
+        for g in genes:  # de-genes for that group
+            X = adata.raw[:, g].X  # thats the expression of a single gene all groups
+
             # annoying, sometimes is sparse sometimes its not!
             if isinstance(X, spmatrix):
                 X = X.A
-            #standard scaling
+            # standard scaling
             if scale:
                 X = X - X.mean()
                 X = X / X.std()
-            
-            _tmp_df = adata.obs[[group]].copy() # which condition the datapoint belongs to
+
+            _tmp_df = adata.obs[[group]].copy()  # which condition the datapoint belongs to
             _tmp_df['expression'] = X
             _tmp_df['gene'] = g
-            _tmp_df['which_de_group'] = c # which group is this gene DE
+            _tmp_df['which_de_group'] = c  # which group is this gene DE
 
             flat_df.append(_tmp_df)
 
     flat_df = pd.concat(flat_df)
     return flat_df, group
+
 
 def plot_de(adata, scale=True, mode='boxplot', ngenes=5, qval_cutoff=0.2):
 

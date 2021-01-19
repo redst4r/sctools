@@ -12,13 +12,16 @@ class Verbose(object):
     """
     context manager for verbose output around statements
     """
+
     def __init__(self, msg, verbose):
         self.msg = msg
         self.verbose = verbose
+
     def __enter__(self):
         if self.verbose:
             print(self.msg)
         return
+
     def __exit__(self, type, value, traceback):
         if self.verbose:
             print(f'Done {self.msg}')
@@ -58,8 +61,8 @@ def standard_processing(adata, detect_doublets=True, MITO_CUTOFF=0.4):
 def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito_cutoff=1,
                           annotate_cellcycle_flag=True,
                           harmony_correction=None,
+                          harmony_clusters=None,
                           verbose=True):
-
     """
     filters for coding genes, adds QC, filters cells based on UMI, applies
     Zheng recipe calulates pca/nn/leiden/paga/umap
@@ -85,18 +88,22 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
     """
     # if verbose: print('annotating cell cycle')
     if annotate_cellcycle_flag:
-        if verbose: print('Annotating Cell cycle')
+        if verbose:
+            print('Annotating Cell cycle')
         adata = annotate_cellcycle(adata)
-        if verbose: print('Done: Annotating Cell cycle')
+        if verbose:
+            print('Done: Annotating Cell cycle')
 
-    if verbose: print('Zheng recipe')
-    sc.pp.recipe_zheng17(adata, n_top_genes=n_top_genes, log=True, plot=True, copy=False)
+    if verbose:
+        print('Zheng recipe')
+    sc.pp.recipe_zheng17(adata, n_top_genes=n_top_genes, log=True, plot=False, copy=False)
 
-    if verbose: print('Done: Zheng recipe')
+    if verbose:
+        print('Done: Zheng recipe')
     # zheng17 log1p the .X data, but doesnt touch .raw.X!
     adata.uns['log_X'] = True
 
-    adata = postprocessing_michi_kallisto_recipe(adata, harmony_correction, verbose)
+    adata = postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clusters=harmony_clusters,verbose=verbose)
 
     assert np.all(adata.raw.X.data == np.round(adata.raw.X.data)), ".raw.X got log'd!"
 
@@ -139,7 +146,7 @@ def preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, 
     return adata
 
 
-def postprocessing_michi_kallisto_recipe(adata, harmony_correction, verbose=True):
+def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clusters=None, verbose=True):
     """
     doing batch correction, PCA/UMAP etc
     """
@@ -150,29 +157,41 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, verbose=True
     """
     harmony batch correction if desired
     this works on the PCA proejction
+
+    Harmony args:
+    data_mat = V, ## PCA embedding matrix of cells
+    meta_data = meta_data, ## dataframe with cell labels
+    theta = 1, ## cluster diversity enforcement
+    vars_use = 'dataset', ## variable to integrate out
+    nclust = 5, ## number of clusters in Harmony model: corresponds to the parameter K in the manuscript.
+    max.iter.harmony = 0, ## stop after initialization
+    return_object = TRUE, ## return the full Harmony model object
+    do_pca = FALSE ## don't recompute PCs
+
+    PHI: design matrix
+
     """
     if harmony_correction:
+        # assert harmony_clusters, "must set harmony_clusters!"
         n_batches = len(adata.obs[harmony_correction].unique())
         # if there's only a single sample, no batch correction needed
         # actually, harmony crashes with some error if you run it on a single batch (harmonypy 0.0.4)
         if n_batches > 1:
             if verbose: print('Harmony batch correction')
-            vars_use = [harmony_correction] # samplenames for harmony
+            vars_use = [harmony_correction]  # samplenames for harmony
             assert harmony_correction in adata.obs.columns
             # get out the PCA matrix
             data_mat = np.array(adata.obsm['X_pca'])
             # and harmonize
-            ho = ha.run_harmony(data_mat,  adata.obs, vars_use, max_iter_kmeans = 25)
+            ho = ha.run_harmony(data_mat,  adata.obs, vars_use, max_iter_harmony=25, nclust=harmony_clusters)
             adata.obsm['X_pca'] = np.transpose(ho.Z_corr)
 
     sc.pp.neighbors(adata)
     sc.tl.leiden(adata, resolution=1)
     sc.tl.louvain(adata)
     sc.tl.paga(adata, groups='leiden')
-    sc.pl.paga(adata, color=['leiden'] ,show=False)
-
+    sc.pl.paga(adata, color=['leiden'], show=False)
     paga_init_pos = sc.tl._utils.get_init_pos_from_paga(adata)
-
     sc.tl.umap(adata, init_pos=paga_init_pos)
 
     # sc.tl.draw_graph(adata, init_pos='paga') # somehow the init_pos works different here
@@ -208,13 +227,13 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, m
     # undoing the log
     adata.raw.X.data = np.round(np.exp(adata.raw.X.data) - 1)
 
-    #filtering
+    # filtering
     sc.tl.filter_rank_genes_groups(adata,
-                                           log=False,  # since we undid the log!
-                                           key_added='rank_genes_groups_filtered',
-                                           min_in_group_fraction=min_in_group_fraction,
-                                           min_fold_change=0,  #not filteirng for fold_change
-                                           max_out_group_fraction=max_out_group_fraction) # not filetering for %expressing outside the cluster
+                                   log=False,  # since we undid the log!
+                                   key_added='rank_genes_groups_filtered',
+                                   min_in_group_fraction=min_in_group_fraction,
+                                   min_fold_change=0,  # not filteirng for fold_change
+                                   max_out_group_fraction=max_out_group_fraction) # not filetering for %expressing outside the cluster
     # now make the filtered genes the default DE genes
     adata.uns['rank_genes_groups_unfiltered'] = adata.uns['rank_genes_groups']
     adata.uns['rank_genes_groups'] = adata.uns['rank_genes_groups_filtered']
@@ -225,7 +244,7 @@ def export_for_cellxgene(adata, annotations):
     _tmp = sc.AnnData(adata.raw.X, obs=adata.obs.copy(), var=adata.raw.var.copy())
     _tmp.uns = adata.uns
     _tmp.obsm = adata.obsm
-    _tmp.obs =  _tmp.obs[annotations]
+    _tmp.obs = _tmp.obs[annotations]
     return _tmp
 
 
@@ -233,7 +252,7 @@ def annotate_doublets(adata, groupby='samplename', PLOTTING=False):
     doublet_vectors = []
     for s in adata.obs[groupby].unique():
         print(s)
-        b = adata[adata.obs[groupby]==s]
+        b = adata[adata.obs[groupby] == s]
 
         if len(b) > 50:
             scrub = scr.Scrublet(b.raw.X, expected_doublet_rate=0.06, sim_doublet_ratio=5)

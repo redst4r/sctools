@@ -10,6 +10,7 @@ setup(name='sctools',
       license='GNU GPL 3',
       keywords='scanpy, scrnaseq',
       packages=find_packages(),
+      include_package_data=True,
       install_requires=[
           'toolz',
           'numpy',

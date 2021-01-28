@@ -121,12 +121,12 @@ def preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, 
     if verbose:
         print('annotating and filtering for coding genes')
     adata = annotate_coding_genes(adata)
-    adata = adata[:, adata.var.is_coding == True].copy()  # copying to avoid getting a view, which has some issues when copying later
+    adata = adata[:, adata.var.is_coding == True] #.copy()  # copying to avoid getting a view, which has some issues when copying later
     gc.collect()
     if verbose:
         print('filtering cells for UMI content')
     cells_before = adata.shape[0]
-    adata = adata[adata.obs.query('n_molecules>@umi_cutoff').index].copy()  # copying to avoid getting a view, which has some issues when copying later
+    adata = adata[adata.obs.query('n_molecules>@umi_cutoff').index] #.copy()  # copying to avoid getting a view, which has some issues when copying later
     gc.collect()
     cells_after = adata.shape[0]
     if verbose:

@@ -111,7 +111,6 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
 
 
 def preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, verbose=True):
-
     """
     filtering (coding/n_genes/n_umis/mito), annotations, but no transformations of the data
     """
@@ -154,6 +153,9 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clus
         print('PCA')
     sc.pp.pca(adata)
 
+    # storing the original/uncorrected PCA
+    adata.obsm['X_pca_original'] = adata.obsm['X_pca'].copy()
+    gc.collect()
     """
     harmony batch correction if desired
     this works on the PCA proejction
@@ -177,7 +179,8 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clus
         # if there's only a single sample, no batch correction needed
         # actually, harmony crashes with some error if you run it on a single batch (harmonypy 0.0.4)
         if n_batches > 1:
-            if verbose: print('Harmony batch correction')
+            if verbose:
+                print('Harmony batch correction')
             vars_use = [harmony_correction]  # samplenames for harmony
             assert harmony_correction in adata.obs.columns
             # get out the PCA matrix
@@ -241,10 +244,17 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, m
 
 def export_for_cellxgene(adata, annotations):
     # for Export we have to pull all the genes back into the adata.X!
-    _tmp = sc.AnnData(adata.raw.X, obs=adata.obs.copy(), var=adata.raw.var.copy())
-    _tmp.uns = adata.uns
-    _tmp.obsm = adata.obsm
-    _tmp.obs = _tmp.obs[annotations]
+    _tmp = sc.AnnData(adata.raw.X,
+                      obs=adata.obs[annotations],
+                      var=adata.raw.var.copy(),
+                      uns=adata.uns,
+                      obsm=adata.obsm,
+                      layers=adata.layers,
+                      obsp=adata.obsp,
+                      # these two wont work: adata.raw is N x 35000, but adata.var and varm are N x 4000
+                      # varm=adata.varm,
+                      # varp=adata.varp
+                      )
     return _tmp
 
 

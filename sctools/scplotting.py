@@ -1,8 +1,9 @@
 import pandas as pd
 from bokeh.plotting import figure, output_file, show, ColumnDataSource
-from bokeh.palettes import Spectral5, Category20b, Blues8
+# from bokeh.palettes import Spectral5, Category20b, Blues8
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
+import numpy as np
 
 godsnot_64 = [
     # "#000000",  # remove the black, as often, we have black colored annotation
@@ -24,6 +25,43 @@ COLORS = godsnot_64
 
 expression_cmap = LinearSegmentedColormap.from_list('mycmap', [(0.7,0.7,0.7),plt.cm.Reds(0.3), plt.cm.Reds(0.9)])
 godsnot_cmap = ListedColormap(godsnot_64, 'godsnot_64')
+
+
+
+def kneeplot(adata, expected_num_cells):
+    "also return the UMI threshold for true cells based on expt number"
+    knee = np.sort((np.array(adata.X.sum(axis=1))).flatten())[::-1]
+    ax =plt.gca()
+    # fig, ax = plt.subplots(figsize=(10, 7))
+
+    ax.loglog(range(len(knee)), knee, label="kallisto", linewidth=5, color="k")
+    ax.axvline(x=expected_num_cells, linewidth=3, color="g")
+    ax.axhline(y=knee[expected_num_cells], linewidth=3, color="g")
+
+    ax.set_xlabel("Set of Barcodes")
+    ax.set_ylabel("UMI Counts")
+
+    plt.grid(True, which="both")
+    ax.legend()
+    # plt.show()
+
+    return knee[expected_num_cells]
+
+
+def kneeplot_split(adata, splitfield='samplename'):
+    splits = sorted(adata.obs[splitfield].unique())
+    for s in splits:
+        a_tmp = adata[adata.obs[splitfield]==s]
+        "also return the UMI threshold for true cells based on expt number"
+        knee = np.sort((np.array(a_tmp.X.sum(axis=1))).flatten())[::-1]
+        ax =plt.gca()
+        ax.loglog(range(len(knee)), knee, label=s, linewidth=5, )
+
+        ax.set_xlabel("Set of Barcodes")
+        ax.set_ylabel("UMI Counts")
+
+        plt.grid(True, which="both")
+        ax.legend()
 
 
 def bokeh_scatter(adata, base:str, color:str):

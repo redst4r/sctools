@@ -1,6 +1,3 @@
-import pandas as pd
-from bokeh.plotting import figure, output_file, show, ColumnDataSource
-# from bokeh.palettes import Spectral5, Category20b, Blues8
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 import numpy as np
@@ -25,7 +22,6 @@ COLORS = godsnot_64
 
 expression_cmap = LinearSegmentedColormap.from_list('mycmap', [(0.7,0.7,0.7),plt.cm.Reds(0.3), plt.cm.Reds(0.9)])
 godsnot_cmap = ListedColormap(godsnot_64, 'godsnot_64')
-
 
 
 def kneeplot(adata, expected_num_cells):
@@ -62,54 +58,3 @@ def kneeplot_split(adata, splitfield='samplename'):
 
         plt.grid(True, which="both")
         ax.legend()
-
-
-def bokeh_scatter(adata, base:str, color:str):
-    """
-    scatter plot for adata objects done in bokeh for interactive visualization
-
-    base: 'pca', 'umap', 'diff'
-    """
-    # output to static HTML file
-    output_file("/tmp/line.html")
-
-    x = adata.obsm[f'X_{base}'][:,0]
-    y = adata.obsm[f'X_{base}'][:,1]
-
-    groups = pd.Categorical(adata.obs[color])
-    c = [COLORS[xx] for xx in groups.codes]
-
-    source = ColumnDataSource(data=dict(
-                                x=x,
-                                y=y,
-                                color=c,
-                                pid=[groups.categories[_] for _ in groups.codes],
-                                stype= adata.obs['Sample Type'].values,
-                                hepato=adata.obs['Hepatocyte'].values/adata.obs['total_cells'].values,
-                                patient=adata.obs['Patient'].values,
-                                source=adata.obs['Source'].values,
-                                ALB=adata[:,'ENSG00000163631'].X
-                            ))
-
-    TOOLTIPS = [
-        #("index", "$index"),
-        #("(x,y)", "($x, $y)"),
-        (f"{color}", "@pid"),
-        ("Sample Type", "@stype"),
-        ("Percent.Hepato", "@hepato"),
-        ("Patient", "@patient"),
-        ("Source", "@source"),
-        ("ALB", "@ALB")
-        ]
-
-    p = figure(plot_width=800, plot_height=800, tools='pan,wheel_zoom,box_zoom,hover,reset', tooltips=TOOLTIPS)
-
-    sample_types = adata.obs['Sample Type'].unique()
-
-#     glyphs = [p.circle, p.cross, p.diamond, p.triangle, p.square, p.vbar, p.wedge, p.circle_cross, p.dash, p.diamond_cross]
-#     for glyph in
-    # add a circle renderer with a size, color, and alpha
-    p.circle('x', 'y', size=5, color='color', alpha=0.5, source=source)
-
-    # show the results
-    show(p)

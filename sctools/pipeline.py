@@ -8,25 +8,6 @@ import gc
 import harmonypy as ha
 
 
-class Verbose(object):
-    """
-    context manager for verbose output around statements
-    """
-
-    def __init__(self, msg, verbose):
-        self.msg = msg
-        self.verbose = verbose
-
-    def __enter__(self):
-        if self.verbose:
-            print(self.msg)
-        return
-
-    def __exit__(self, type, value, traceback):
-        if self.verbose:
-            print(f'Done {self.msg}')
-
-
 def standard_processing(adata, detect_doublets=True, MITO_CUTOFF=0.4):
     """
     Wrapper around `michi_kallisto_recipe()` with standardized values for
@@ -121,12 +102,12 @@ def preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, 
     if verbose:
         print('annotating and filtering for coding genes')
     adata = annotate_coding_genes(adata)
-    adata = adata[:, adata.var.is_coding == True] #.copy()  # copying to avoid getting a view, which has some issues when copying later
+    adata = adata[:, adata.var.is_coding == True]
     gc.collect()
     if verbose:
         print('filtering cells for UMI content')
     cells_before = adata.shape[0]
-    adata = adata[adata.obs.query('n_molecules>@umi_cutoff').index] #.copy()  # copying to avoid getting a view, which has some issues when copying later
+    adata = adata[adata.obs.query('n_molecules>@umi_cutoff').index]
     gc.collect()
     cells_after = adata.shape[0]
     if verbose:

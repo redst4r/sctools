@@ -21,6 +21,7 @@ setup(name='sctools',
           'plotnine',
           'rnaseqtools @git+https://github.com/redst4r/rnaseqtools',
           'scrublet',
-          'harmonypy ==0.0.5'
+          'harmonypy ==0.0.5',
+          'gprofiler-official'
           ],
       zip_safe=False)

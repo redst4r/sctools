@@ -1,21 +1,30 @@
 import scanpy as sc
 import numpy as np
+import numba
+# import scipy as sp
+from scipy.sparse import issparse, isspmatrix_csr, csr_matrix
+# from sklearn.utils import sparsefuncs, check_array
+# from pandas.api.types import is_categorical_dtype
+# from anndata import AnnData
+
 
 class Verbose(object):
     """
     context manager for verbose output around statements
     """
+
     def __init__(self, msg, verbose):
         self.msg = msg
         self.verbose = verbose
+
     def __enter__(self):
         if self.verbose:
             print(self.msg)
         return
+
     def __exit__(self, type, value, traceback):
         if self.verbose:
             print(f'Done {self.msg}')
-
 
 
 def get_diffusion_pseudotime(adata, n_dcs, min_group_size):
@@ -29,13 +38,7 @@ def get_diffusion_pseudotime(adata, n_dcs, min_group_size):
     return D
 
 
-import numba
-import numpy as np
-import scipy as sp
-from scipy.sparse import issparse, isspmatrix_csr, csr_matrix, spmatrix
-from sklearn.utils import sparsefuncs, check_array
-from pandas.api.types import is_categorical_dtype
-from anndata import AnnData
+
 
 """
 adata converts .X to float32 ALWAYS.
@@ -43,6 +46,7 @@ this causes numerical issues when doing the .cumsum() below
 
 i.e. this sum can come out smaller then the actual sum
 """
+
 
 def _downsample_total_counts(X, total_counts, random_state, replace):
     total_counts = int(total_counts)
@@ -53,7 +57,7 @@ def _downsample_total_counts(X, total_counts, random_state, replace):
     original_type = type(X)
     if not isspmatrix_csr(X):
         X = csr_matrix(X)
-        
+
     X = X.astype(int)
     _downsample_array(
         X.data,

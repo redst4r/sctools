@@ -11,12 +11,13 @@ tools for differential expression in scanpy
 """
 
 
-def get_de_genes(adata, cluster):
+def get_de_genes(adata, cluster, as_list=False):
     df = scanpy_DE_to_dataframe_fast(adata)[cluster]
 
     genes = df['name']
     genes = genes.replace({np.nan: 'nan'})
-    return " ".join(genes )
+
+    return genes if as_list else " ".join(genes)
 
 
 def DEG_one_vs_all(Q):

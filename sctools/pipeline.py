@@ -143,6 +143,23 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clus
 
     if harmony_correction:
         if verbose:
+            print('Harmony batch correction: uncorrected layout')
+        # create an uncorrected layout first, for comparison!
+        nobatch_key = 'nobatch'
+        sc.pp.neighbors(adata, key_added=nobatch_key)
+        sc.tl.leiden(adata, resolution=1, neighbors_key=nobatch_key, key_added=f'{nobatch_key}_leiden')
+        sc.tl.louvain(adata, neighbors_key=nobatch_key, key_added=f'{nobatch_key}_louvain')
+        sc.tl.paga(adata, groups=f'{nobatch_key}_leiden', neighbors_key=nobatch_key)
+        sc.pl.paga(adata, color=[f'{nobatch_key}_leiden'], show=False)
+        paga_init_pos = sc.tl._utils.get_init_pos_from_paga(adata, neighbors_key=nobatch_key)
+
+        # unfort we cant tell umap where to store the result,
+        # it'll go to .obsm['X_umap'] always
+        sc.tl.umap(adata, init_pos=paga_init_pos, neighbors_key=nobatch_key)
+        adata.obsm[f'X_umap_{nobatch_key}'] = adata.obsm['X_umap']
+
+        # now the actual batch correction
+        if verbose:
             print('Harmony batch correction: applying harmony')
         corrected_pca = _do_harmony(adata, harmony_correction, harmony_clusters)
         adata.obsm['X_pca'] = corrected_pca

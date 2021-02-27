@@ -6,7 +6,7 @@ import scrublet as scr
 import pandas as pd
 import gc
 import harmonypy as ha
-
+import warnings
 
 def standard_processing(adata, detect_doublets=True, MITO_CUTOFF=0.4):
     """
@@ -61,13 +61,13 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
     adata = preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, verbose=True)
 
     """
-    annotating the cellcycle on the reduced data (filtered for potential cells, not just CB)
-    since preprocessing doenst change anything (except kicking out genes/cells)
-    its alot more feasable after filtering!
-    Note; this might still take ALOT of memory if more then 10k cells remain after filtering
-    not sure what the cell-cycle scoring function in scanpy is doing internally!
+    annotating the cellcycle on the reduced data (filtered for potential cells,
+    not just CB) since preprocessing doenst change anything (except kicking out
+    genes/cells). its alot more feasable after filtering!
+    Note; this might still take ALOT of memory if more then 10k cells remain
+    after filtering not sure what the cell-cycle scoring function in scanpy is
+    doing internally!
     """
-    # if verbose: print('annotating cell cycle')
     if annotate_cellcycle_flag:
         if verbose:
             print('Annotating Cell cycle')
@@ -84,7 +84,10 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
     # zheng17 log1p the .X data, but doesnt touch .raw.X!
     adata.uns['log_X'] = True
 
-    adata = postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clusters=harmony_clusters,verbose=verbose)
+    adata = postprocessing_michi_kallisto_recipe(adata,
+                                                 harmony_correction,
+                                                 harmony_clusters=harmony_clusters,
+                                                 verbose=verbose)
 
     assert np.all(adata.raw.X.data == np.round(adata.raw.X.data)), ".raw.X got log'd!"
 
@@ -137,38 +140,12 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clus
     # storing the original/uncorrected PCA
     adata.obsm['X_pca_original'] = adata.obsm['X_pca'].copy()
     gc.collect()
-    """
-    harmony batch correction if desired
-    this works on the PCA proejction
 
-    Harmony args:
-    data_mat = V, ## PCA embedding matrix of cells
-    meta_data = meta_data, ## dataframe with cell labels
-    theta = 1, ## cluster diversity enforcement
-    vars_use = 'dataset', ## variable to integrate out
-    nclust = 5, ## number of clusters in Harmony model: corresponds to the parameter K in the manuscript.
-    max.iter.harmony = 0, ## stop after initialization
-    return_object = TRUE, ## return the full Harmony model object
-    do_pca = FALSE ## don't recompute PCs
-
-    PHI: design matrix
-
-    """
     if harmony_correction:
-        # assert harmony_clusters, "must set harmony_clusters!"
-        n_batches = len(adata.obs[harmony_correction].unique())
-        # if there's only a single sample, no batch correction needed
-        # actually, harmony crashes with some error if you run it on a single batch (harmonypy 0.0.4)
-        if n_batches > 1:
-            if verbose:
-                print('Harmony batch correction')
-            vars_use = [harmony_correction]  # samplenames for harmony
-            assert harmony_correction in adata.obs.columns
-            # get out the PCA matrix
-            data_mat = np.array(adata.obsm['X_pca'])
-            # and harmonize
-            ho = ha.run_harmony(data_mat,  adata.obs, vars_use, max_iter_harmony=25, nclust=harmony_clusters)
-            adata.obsm['X_pca'] = np.transpose(ho.Z_corr)
+        if verbose:
+            print('Harmony batch correction: applying harmony')
+        corrected_pca = _do_harmony(adata, harmony_correction, harmony_clusters)
+        adata.obsm['X_pca'] = corrected_pca
 
     sc.pp.neighbors(adata)
     sc.tl.leiden(adata, resolution=1)
@@ -178,9 +155,50 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clus
     paga_init_pos = sc.tl._utils.get_init_pos_from_paga(adata)
     sc.tl.umap(adata, init_pos=paga_init_pos)
 
-    # sc.tl.draw_graph(adata, init_pos='paga') # somehow the init_pos works different here
-
     return adata
+
+
+def _do_harmony(adata, harmony_correction: str, harmony_clusters):
+    """
+    apply harmony on the adata: uses the current .obsm[X_pca] to correct batch
+    effects and creates a new PCA which is corrected for batches
+
+    :params adata: AnnData object to correct
+    :params harmony_correction: Batch variable
+    :params harmony_clusters: Number of seeding clusters. If None, automatically selected
+    :returns: np.array with corrected PC scores for each cell
+    """
+    # Harmony args:
+    # data_mat = V, ## PCA embedding matrix of cells
+    # meta_data = meta_data, ## dataframe with cell labels
+    # theta = 1, ## cluster diversity enforcement
+    # vars_use = 'dataset', ## variable to integrate out
+    # nclust = 5, ## number of clusters in Harmony model: corresponds to the parameter K in the manuscript.
+    # max.iter.harmony = 0, ## stop after initialization
+    # return_object = TRUE, ## return the full Harmony model object
+    # do_pca = FALSE ## don't recompute PCs
+    # PHI: design matrix
+
+    assert harmony_correction in adata.obs.columns
+    n_batches = len(adata.obs[harmony_correction].unique())
+
+    # if there's only a single sample, no batch correction needed
+    # actually, harmony crashes with some error if you run it on a single batch (harmonypy 0.0.4)
+    if n_batches > 1:
+
+        vars_use = [harmony_correction]  # samplenames for harmony
+        # get out the PCA matrix
+        data_mat = np.array(adata.obsm['X_pca'])
+        # and harmonize
+        ho = ha.run_harmony(data_mat, adata.obs, vars_use,
+                            max_iter_harmony=25,
+                            nclust=harmony_clusters)
+        corrected_X_pca = np.transpose(ho.Z_corr)
+    else:
+        warnings.warn('Only single batch in the data, skipping harmonh')
+        corrected_X_pca = np.array(adata.obsm['X_pca'])
+
+    return corrected_X_pca
 
 
 def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, method='wilcoxon', min_in_group_fraction=0, max_out_group_fraction=1, use_raw=True):

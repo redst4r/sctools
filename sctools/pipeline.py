@@ -8,6 +8,7 @@ import gc
 import harmonypy as ha
 import warnings
 
+
 def standard_processing(adata, detect_doublets=True, MITO_CUTOFF=0.4):
     """
     Wrapper around `michi_kallisto_recipe()` with standardized values for
@@ -137,15 +138,17 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clus
         print('PCA')
     sc.pp.pca(adata)
 
-    # storing the original/uncorrected PCA
-    adata.obsm['X_pca_original'] = adata.obsm['X_pca'].copy()
     gc.collect()
 
     if harmony_correction:
         if verbose:
             print('Harmony batch correction: uncorrected layout')
         # create an uncorrected layout first, for comparison!
-        nobatch_key = 'nobatch'
+
+        # storing the original/uncorrected PCA
+        adata.obsm['X_pca_original'] = adata.obsm['X_pca'].copy()
+
+        nobatch_key = 'nobatch'  # dont change this, its referenced in cellxgene export!
         sc.pp.neighbors(adata, key_added=nobatch_key)
         sc.tl.leiden(adata, resolution=1, neighbors_key=nobatch_key, key_added=f'{nobatch_key}_leiden')
         sc.tl.louvain(adata, neighbors_key=nobatch_key, key_added=f'{nobatch_key}_louvain')

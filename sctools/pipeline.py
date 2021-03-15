@@ -251,7 +251,7 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, m
 
     # filtering
     sc.tl.filter_rank_genes_groups(adata,
-                                   log=False,  # since we undid the log!
+                                   # log=False,  # since we undid the log!
                                    key_added='rank_genes_groups_filtered',
                                    min_in_group_fraction=min_in_group_fraction,
                                    min_fold_change=0,  # not filteirng for fold_change

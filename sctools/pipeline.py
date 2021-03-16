@@ -31,12 +31,23 @@ def standard_processing(adata, detect_doublets=True, MITO_CUTOFF=0.4):
     if detect_doublets:
         adata = annotate_doublets(adata, groupby='samplename')
 
+    # DE between the batch correted leiden clusters
     differential_expression_michi_kallisto_recipe(adata,
                                                   groupby='leiden',
                                                   n_genes=100,
                                                   method='wilcoxon',
                                                   min_in_group_fraction=DE_min,
-                                                  max_out_group_fraction=DE_max)
+                                                  max_out_group_fraction=DE_max,
+                                                  key_added='rank_genes_groups')
+
+    # DE between the UNCORRECTED leiden clusters
+    differential_expression_michi_kallisto_recipe(adata,
+                                                  groupby='nobatch_leiden',
+                                                  n_genes=100,
+                                                  method='wilcoxon',
+                                                  min_in_group_fraction=DE_min,
+                                                  max_out_group_fraction=DE_max,
+                                                  key_added='nobatch_rank_genes_groups')
     return adata
 
 
@@ -221,7 +232,7 @@ def _do_harmony(adata, harmony_correction: str, harmony_clusters):
     return corrected_X_pca
 
 
-def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, method='wilcoxon', min_in_group_fraction=0, max_out_group_fraction=1, use_raw=True):
+def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, method='wilcoxon', min_in_group_fraction=0, max_out_group_fraction=1, use_raw=True, key_added='rank_genes_groups'):
     """
     scanpy by default runs the differential expression on .raw.X, but also assumes
     logarithmized data. Otherwise, pvals come out wrong!
@@ -245,20 +256,20 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, m
     assert not adata.raw is None, "no data is present in the .raw storage. Differential expression will is only done on the .raw data!"
     assert not adata.uns['log_raw.X']
     adata.raw.X.data = np.log1p(adata.raw.X.data)
-    sc.tl.rank_genes_groups(adata, groupby=groupby, n_genes=n_genes, method=method, use_raw=use_raw)
+    sc.tl.rank_genes_groups(adata, groupby=groupby, n_genes=n_genes, method=method, use_raw=use_raw, key_added=key_added)
     # undoing the log
     adata.raw.X.data = np.round(np.exp(adata.raw.X.data) - 1)
 
     # filtering
     sc.tl.filter_rank_genes_groups(adata,
-                                   # log=False,  # since we undid the log!
-                                   key_added='rank_genes_groups_filtered',
+                                   key=key_added,
+                                   key_added=f'{key_added}_filtered',
                                    min_in_group_fraction=min_in_group_fraction,
                                    min_fold_change=0,  # not filteirng for fold_change
                                    max_out_group_fraction=max_out_group_fraction) # not filetering for %expressing outside the cluster
     # now make the filtered genes the default DE genes
-    adata.uns['rank_genes_groups_unfiltered'] = adata.uns['rank_genes_groups']
-    adata.uns['rank_genes_groups'] = adata.uns['rank_genes_groups_filtered']
+    adata.uns[f'{key_added}_unfiltered'] = adata.uns[key_added]
+    adata.uns[key_added] = adata.uns[f'{key_added}_filtered']
 
 
 def export_for_cellxgene(adata, annotations):

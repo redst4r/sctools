@@ -11,8 +11,8 @@ tools for differential expression in scanpy
 """
 
 
-def get_de_genes(adata, cluster, as_list=False):
-    df = scanpy_DE_to_dataframe_fast(adata)[cluster]
+def get_de_genes(adata, cluster, as_list=False, key='rank_genes_groups'):
+    df = scanpy_DE_to_dataframe_fast(adata, key)[cluster]
 
     genes = df['name']
     genes = genes.replace({np.nan: 'nan'})
@@ -94,17 +94,18 @@ def DEG_one_vs_all_aggregate(de):
     return df_all_siginificant
 
 
-def scanpy_DE_to_dataframe_fast(adata):
+def scanpy_DE_to_dataframe_fast(adata, key='rank_genes_groups'):
     """
     to just get DE genes and their scores/pvals out of scanpy
 
     faster version to `scanpy_DE_to_dataframe`
     """
-    rank_dict = adata.uns['rank_genes_groups']
+
+    rank_dict = adata.uns[key]
     df = []
 
-    groupby = adata.uns['rank_genes_groups']['params']['groupby']
-    groupnames = adata.uns['rank_genes_groups']['names'].dtype.names
+    groupby = adata.uns[key]['params']['groupby']
+    groupnames = adata.uns[key]['names'].dtype.names
 
     for i in range(len(rank_dict['scores'])):
         # the items always come in pairs: up in group 1, up in group2
@@ -168,15 +169,15 @@ def split_adata_raw(adata, groupby):
     return prec_datasets
 
 
-def scanpy_DE_to_dataframe(adata):
+def scanpy_DE_to_dataframe(adata, key='rank_genes_groups'):
     """
     turn the differential expression from scanpy (rank...)
     into a more readable dataframe
     """
-    rank_dict = adata.uns['rank_genes_groups']
+    rank_dict = adata.uns[key]
     df = []
-    groupby = adata.uns['rank_genes_groups']['params']['groupby']
-    groupnames = adata.uns['rank_genes_groups']['names'].dtype.names
+    groupby = adata.uns[key]['params']['groupby']
+    groupnames = adata.uns[key]['names'].dtype.names
 
     prec_datasets = split_adata_raw(adata, groupby)
 
@@ -304,12 +305,12 @@ def gene_expression_to_flat_df(adata, genes, grouping_var, scale, use_raw):
 
 
 # TODO this is highly redundant with gene_expression_to_flat_df
-def de_adata_to_flat_df(adata, scale:bool, ngenes, qval_cutoff):
+def de_adata_to_flat_df(adata, scale:bool, ngenes, qval_cutoff, key='rank_genes_groups'):
     _tmp = scanpy_DE_to_dataframe_fast(adata)
 
     de_genes = {g: df.query(f'qval<{qval_cutoff}').name.head(ngenes).tolist() for g,df in _tmp.items()}
 
-    group = adata.uns['rank_genes_groups']['params']['groupby']
+    group = adata.uns[key]['params']['groupby']
 
     # building a long dataframe with
     # cell_index, genename, expression, which_de_group

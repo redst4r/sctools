@@ -178,12 +178,17 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clus
         corrected_pca = _do_harmony(adata, harmony_correction, harmony_clusters)
         adata.obsm['X_pca'] = corrected_pca
 
+    if verbose: print('sc.pp.neighbours')
     sc.pp.neighbors(adata)
+    if verbose: print('sc.tl.leiden')
     sc.tl.leiden(adata, resolution=1)
+    if verbose: print('sc.tl.louvain')
     sc.tl.louvain(adata)
+    if verbose: print('sc.tl.paga')
     sc.tl.paga(adata, groups='leiden')
     sc.pl.paga(adata, color=['leiden'], show=False)
     paga_init_pos = sc.tl._utils.get_init_pos_from_paga(adata)
+    if verbose: print('sc.tl.umap')
     sc.tl.umap(adata, init_pos=paga_init_pos)
 
     return adata

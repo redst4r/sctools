@@ -23,6 +23,22 @@ COLORS = godsnot_64
 expression_cmap = LinearSegmentedColormap.from_list('mycmap', [(0.7,0.7,0.7),plt.cm.Reds(0.3), plt.cm.Reds(0.9)])
 godsnot_cmap = ListedColormap(godsnot_64, 'godsnot_64')
 
+def recolor(adata, field, colors):
+    """
+    recolor the column `adata.obs[field]` using the specified color_vecotr
+
+    handy as scnapy sometimes screws up the coloring for columns with MANY categories
+    """
+    colorfield = f'{field}_colors'
+    if colorfield in adata.uns:
+        del adata.uns[colorfield]
+
+    cats = adata.obs[field].unique().astype('str')
+    if len(cats) > len(colors):
+        colors = colors + colors
+    cvector = [colors[i] for i in range(len(cats))]
+    adata.uns[colorfield] = cvector
+
 
 def kneeplot(adata, expected_num_cells):
     "also return the UMI threshold for true cells based on expt number"

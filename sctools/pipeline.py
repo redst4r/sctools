@@ -293,14 +293,20 @@ def export_for_cellxgene(adata, annotations):
     return _tmp
 
 
-def annotate_doublets(adata, groupby='samplename', PLOTTING=False):
+def annotate_doublets(adata, groupby='samplename', PLOTTING=False, expected_doublet_rate=0.06):
+    """
+    run scrublet (Klein et al) on the samples within adata.
+    Applies to each samplename separately (we can process merged datasets this way)
+
+    """
+
     doublet_vectors = []
     for s in adata.obs[groupby].unique():
         print(s)
         b = adata[adata.obs[groupby] == s]
 
         if len(b) > 50:
-            scrub = scr.Scrublet(b.raw.X, expected_doublet_rate=0.06, sim_doublet_ratio=5)
+            scrub = scr.Scrublet(b.raw.X, expected_doublet_rate=expected_doublet_rate, sim_doublet_ratio=5)
             doublet_scores, predicted_doublets = scrub.scrub_doublets(min_counts=2,
                                                                       min_cells=3,
                                                                       min_gene_variability_pctl=85,

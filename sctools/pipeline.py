@@ -29,8 +29,10 @@ def standard_processing(adata, detect_doublets=True, MITO_CUTOFF=0.4):
                                   verbose=True)
 
     if detect_doublets:
+        print('Annotating doublets')
         adata = annotate_doublets(adata, groupby='samplename')
 
+    print('Differential Experssion (batch corrected clusters)')
     # DE between the batch correted leiden clusters
     differential_expression_michi_kallisto_recipe(adata,
                                                   groupby='leiden',
@@ -40,6 +42,7 @@ def standard_processing(adata, detect_doublets=True, MITO_CUTOFF=0.4):
                                                   max_out_group_fraction=DE_max,
                                                   key_added='rank_genes_groups')
 
+    print('Differential Experssion (raw (no batch correction) clusters)')
     # DE between the UNCORRECTED leiden clusters
     differential_expression_michi_kallisto_recipe(adata,
                                                   groupby='nobatch_leiden',
@@ -190,6 +193,7 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clus
     paga_init_pos = sc.tl._utils.get_init_pos_from_paga(adata)
     if verbose: print('sc.tl.umap')
     sc.tl.umap(adata, init_pos=paga_init_pos)
+    if verbose: print('sc.tl.umap done')
 
     return adata
 

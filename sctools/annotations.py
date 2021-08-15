@@ -108,7 +108,7 @@ def annotate_qc_metrics(adata):
     adata.var['is_mito'] = adata.var.index.map(lambda x: x.startswith('MT-'))
     adata.var['is_ribo'] = adata.var.index.map(lambda x: x.startswith('RPS') or x.startswith('RPL'))
 
-    adata.obs['n_ribo'] = adata.raw[:,adata.var.query('is_ribo==True').index].X.sum(1)
+    adata.obs['n_ribo'] = adata.raw[:,adata.var.query('is_ribo==True').index].X.sum(1).A.flatten()
     adata.obs['percent_ribo'] = adata.obs['n_ribo'] / adata.obs['n_molecules']
 
     nmg = [_ for _ in nuclear_mito_genes if _ in adata.var_names]

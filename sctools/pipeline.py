@@ -58,7 +58,8 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
                           annotate_cellcycle_flag=True,
                           harmony_correction=None,
                           harmony_clusters=None,
-                          verbose=True):
+                          verbose=True,
+                          ignore_int_test=False):
     """
     filters for coding genes, adds QC, filters cells based on UMI, applies
     Zheng recipe calulates pca/nn/leiden/paga/umap
@@ -68,8 +69,9 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
 
     # make sure we get an unprocessed adata!
     assert adata.raw, ".raw does not exist!"
-    assert np.all(adata.X.data == np.round(adata.X.data)), ".X must be ints/counts (maybe log1p'd?)"
-    assert np.all(adata.raw.X.data == np.round(adata.raw.X.data)), ".raw.X must be ints/counts (maybe log1p'd?)"
+    if not ignore_int_test:
+        assert np.all(adata.X.data == np.round(adata.X.data)), ".X must be ints/counts (maybe log1p'd?)"
+        assert np.all(adata.raw.X.data == np.round(adata.raw.X.data)), ".raw.X must be ints/counts (maybe log1p'd?)"
 
     adata.uns['log_X'] = False  # keep track of whats logarithmized or not
     adata.uns['log_raw.X'] = False
@@ -103,8 +105,8 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
                                                  harmony_correction,
                                                  harmony_clusters=harmony_clusters,
                                                  verbose=verbose)
-
-    assert np.all(adata.raw.X.data == np.round(adata.raw.X.data)), ".raw.X got log'd!"
+    if not ignore_int_test:
+        assert np.all(adata.raw.X.data == np.round(adata.raw.X.data)), ".raw.X got log'd!"
 
     return adata
 

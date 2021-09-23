@@ -165,15 +165,25 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clus
         adata.obsm['X_pca_original'] = adata.obsm['X_pca'].copy()
 
         nobatch_key = 'nobatch'  # dont change this, its referenced in cellxgene export!
+        if verbose:
+            print('Neighbors')
         sc.pp.neighbors(adata, key_added=nobatch_key)
+        if verbose:
+            print('Leiden')
         sc.tl.leiden(adata, resolution=1, neighbors_key=nobatch_key, key_added=f'{nobatch_key}_leiden')
+        if verbose:
+            print('Louvain')
         sc.tl.louvain(adata, neighbors_key=nobatch_key, key_added=f'{nobatch_key}_louvain')
+        if verbose:
+            print('PAGA')
         sc.tl.paga(adata, groups=f'{nobatch_key}_leiden', neighbors_key=nobatch_key)
         sc.pl.paga(adata, color=[f'{nobatch_key}_leiden'], show=False)
         paga_init_pos = sc.tl._utils.get_init_pos_from_paga(adata, neighbors_key=nobatch_key)
 
         # unfort we cant tell umap where to store the result,
         # it'll go to .obsm['X_umap'] always
+        if verbose:
+            print('UMAP') 
         sc.tl.umap(adata, init_pos=paga_init_pos, neighbors_key=nobatch_key)
         adata.obsm[f'X_umap_{nobatch_key}'] = adata.obsm['X_umap']
 

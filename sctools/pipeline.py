@@ -183,7 +183,7 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clus
         # unfort we cant tell umap where to store the result,
         # it'll go to .obsm['X_umap'] always
         if verbose:
-            print('UMAP') 
+            print('UMAP')
         sc.tl.umap(adata, init_pos=paga_init_pos, neighbors_key=nobatch_key)
         adata.obsm[f'X_umap_{nobatch_key}'] = adata.obsm['X_umap']
 
@@ -253,7 +253,7 @@ def _do_harmony(adata, harmony_correction: str, harmony_clusters):
     return corrected_X_pca
 
 
-def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, method='wilcoxon', min_in_group_fraction=0, max_out_group_fraction=1, use_raw=True, key_added='rank_genes_groups'):
+def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, method='wilcoxon', min_in_group_fraction=0, max_out_group_fraction=1, use_raw=True, key_added='rank_genes_groups', csc_transform=True):
     """
     scanpy by default runs the differential expression on .raw.X, but also assumes
     logarithmized data. Otherwise, pvals come out wrong!
@@ -273,13 +273,32 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, m
     :param min_in_group_fraction: \in [0,1]. Additionally filter the DE genes: At least x% of cells must express this gene in the upregulated cluster.
     Prevents genes that are extremly high in a few cells from dominating the DE list. Useful for marker genes (every cell in a cluster should express that marker!)
     :param max_out_group_fraction: similar, just force genes to be exclusively expressed in the cluster: Filter genes that have more then x% cells expressing it outside the cluster
+    :param csc_transform: for big matrices, things go alot faster if we have the .X matrix in csc format instead of csr. However this takes some memory! After we're done, we undo it
     """
     assert not adata.raw is None, "no data is present in the .raw storage. Differential expression will is only done on the .raw data!"
     assert not adata.uns['log_raw.X']
     adata.raw.X.data = np.log1p(adata.raw.X.data)
+
+    if csc_transform:
+        print('doing csr->csc')
+        # we have to trick scanpy a little, since we cant set .raw.X directly
+        X = adata.raw.X.tocsc()
+        _raw = sc.AnnData(X, obs=adata.obs, var=adata.raw.var)
+        adata.raw = _raw
+        print('done csr->csc')
+
+
     sc.tl.rank_genes_groups(adata, groupby=groupby, n_genes=n_genes, method=method, use_raw=use_raw, key_added=key_added)
     # undoing the log
     adata.raw.X.data = np.round(np.exp(adata.raw.X.data) - 1)
+
+    if csc_transform:  # undo it
+        print('doing csc->csr')
+        X = adata.raw.X.tocsr()
+        _raw = sc.AnnData(X, obs=adata.obs, var=adata.raw.var)
+        adata.raw = _raw
+        print('done csc->csr')
+
 
     # filtering
     sc.tl.filter_rank_genes_groups(adata,

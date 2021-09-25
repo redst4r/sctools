@@ -7,6 +7,10 @@ import pandas as pd
 import gc
 import harmonypy as ha
 import warnings
+import logging
+
+
+logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO)
 
 
 def standard_processing(adata, detect_doublets=True, MITO_CUTOFF=0.4):
@@ -29,10 +33,10 @@ def standard_processing(adata, detect_doublets=True, MITO_CUTOFF=0.4):
                                   verbose=True)
 
     if detect_doublets:
-        print('Annotating doublets')
+        logging.info('Annotating doublets')
         adata = annotate_doublets(adata, groupby='samplename')
 
-    print('Differential Experssion (batch corrected clusters)')
+    logging.info('Differential Experssion (batch corrected clusters)')
     # DE between the batch correted leiden clusters
     differential_expression_michi_kallisto_recipe(adata,
                                                   groupby='leiden',
@@ -42,7 +46,7 @@ def standard_processing(adata, detect_doublets=True, MITO_CUTOFF=0.4):
                                                   max_out_group_fraction=DE_max,
                                                   key_added='rank_genes_groups')
 
-    print('Differential Experssion (raw (no batch correction) clusters)')
+    logging.info('Differential Experssion (raw (no batch correction) clusters)')
     # DE between the UNCORRECTED leiden clusters
     differential_expression_michi_kallisto_recipe(adata,
                                                   groupby='nobatch_leiden',
@@ -86,18 +90,14 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
     doing internally!
     """
     if annotate_cellcycle_flag:
-        if verbose:
-            print('Annotating Cell cycle')
+        logging.info('Annotating Cell cycle')
         adata = annotate_cellcycle(adata)
-        if verbose:
-            print('Done: Annotating Cell cycle')
+        logging.info('Done: Annotating Cell cycle')
 
-    if verbose:
-        print('Zheng recipe')
+    logging.info('Zheng recipe')
     sc.pp.recipe_zheng17(adata, n_top_genes=n_top_genes, log=True, plot=False, copy=False)
 
-    if verbose:
-        print('Done: Zheng recipe')
+    logging.info('Done: Zheng recipe')
     # zheng17 log1p the .X data, but doesnt touch .raw.X!
     adata.uns['log_X'] = True
 
@@ -115,33 +115,27 @@ def preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, 
     """
     filtering (coding/n_genes/n_umis/mito), annotations, but no transformations of the data
     """
-    if verbose:
-        print('annotating QC')
+    logging.info('annotating QC')
     adata = annotate_qc_metrics(adata)
 
-    if verbose:
-        print('annotating and filtering for coding genes')
+    logging.info('annotating and filtering for coding genes')
     adata = annotate_coding_genes(adata)
     adata = adata[:, adata.var.is_coding == True]
     gc.collect()
-    if verbose:
-        print('filtering cells for UMI content')
+    logging.info('filtering cells for UMI content')
     cells_before = adata.shape[0]
     adata = adata[adata.obs.query('n_molecules>@umi_cutoff').index]
     gc.collect()
     cells_after = adata.shape[0]
-    if verbose:
-        print(f'Cells: {cells_before} -> {cells_after}')
+    logging.info(f'Cells: {cells_before} -> {cells_after}')
 
-    if verbose:
-        print('filtering cells for mito content')
+    logging.info('filtering cells for mito content')
     cells_before = adata.shape[0]
     adata = adata[adata.obs.query('percent_mito<@percent_mito_cutoff').index].copy()  # copying to avoid getting a view, which has some issues when copying later
     gc.collect()
 
     cells_after = adata.shape[0]
-    if verbose:
-        print(f'Cells: {cells_before} -> {cells_after}')
+    logging.info(f'Cells: {cells_before} -> {cells_after}')
 
     return adata
 
@@ -150,62 +144,54 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clus
     """
     doing batch correction, PCA/UMAP etc
     """
-    if verbose:
-        print('PCA')
+    logging.info('PCA')
     sc.pp.pca(adata)
 
     gc.collect()
 
     if harmony_correction:
-        if verbose:
-            print('Harmony batch correction: uncorrected layout')
+        logging.info('Harmony batch correction: uncorrected layout')
         # create an uncorrected layout first, for comparison!
 
         # storing the original/uncorrected PCA
         adata.obsm['X_pca_original'] = adata.obsm['X_pca'].copy()
 
         nobatch_key = 'nobatch'  # dont change this, its referenced in cellxgene export!
-        if verbose:
-            print('Neighbors')
+        logging.info('Neighbors')
         sc.pp.neighbors(adata, key_added=nobatch_key)
-        if verbose:
-            print('Leiden')
+        logging.info('Leiden')
         sc.tl.leiden(adata, resolution=1, neighbors_key=nobatch_key, key_added=f'{nobatch_key}_leiden')
-        if verbose:
-            print('Louvain')
+        logging.info('Louvain')
         sc.tl.louvain(adata, neighbors_key=nobatch_key, key_added=f'{nobatch_key}_louvain')
-        if verbose:
-            print('PAGA')
+        logging.info('PAGA')
         sc.tl.paga(adata, groups=f'{nobatch_key}_leiden', neighbors_key=nobatch_key)
         sc.pl.paga(adata, color=[f'{nobatch_key}_leiden'], show=False)
         paga_init_pos = sc.tl._utils.get_init_pos_from_paga(adata, neighbors_key=nobatch_key)
 
         # unfort we cant tell umap where to store the result,
         # it'll go to .obsm['X_umap'] always
-        if verbose:
-            print('UMAP')
+        logging.info('UMAP')
         sc.tl.umap(adata, init_pos=paga_init_pos, neighbors_key=nobatch_key)
         adata.obsm[f'X_umap_{nobatch_key}'] = adata.obsm['X_umap']
 
         # now the actual batch correction
-        if verbose:
-            print('Harmony batch correction: applying harmony')
+        logging.info('Harmony batch correction: applying harmony')
         corrected_pca = _do_harmony(adata, harmony_correction, harmony_clusters)
         adata.obsm['X_pca'] = corrected_pca
 
-    if verbose: print('sc.pp.neighbours')
+    logging.info('sc.pp.neighbours')
     sc.pp.neighbors(adata)
-    if verbose: print('sc.tl.leiden')
+    logging.info('sc.tl.leiden')
     sc.tl.leiden(adata, resolution=1)
-    if verbose: print('sc.tl.louvain')
+    logging.info('sc.tl.louvain')
     sc.tl.louvain(adata)
-    if verbose: print('sc.tl.paga')
+    logging.info('sc.tl.paga')
     sc.tl.paga(adata, groups='leiden')
     sc.pl.paga(adata, color=['leiden'], show=False)
     paga_init_pos = sc.tl._utils.get_init_pos_from_paga(adata)
-    if verbose: print('sc.tl.umap')
+    logging.info('sc.tl.umap')
     sc.tl.umap(adata, init_pos=paga_init_pos)
-    if verbose: print('sc.tl.umap done')
+    logging.info('sc.tl.umap done')
 
     return adata
 
@@ -280,12 +266,12 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, m
     adata.raw.X.data = np.log1p(adata.raw.X.data)
 
     if csc_transform:
-        print('doing csr->csc')
+        logging.info('doing csr->csc')
         # we have to trick scanpy a little, since we cant set .raw.X directly
         X = adata.raw.X.tocsc()
         _raw = sc.AnnData(X, obs=adata.obs, var=adata.raw.var)
         adata.raw = _raw
-        print('done csr->csc')
+        logging.info('done csr->csc')
 
 
     sc.tl.rank_genes_groups(adata, groupby=groupby, n_genes=n_genes, method=method, use_raw=use_raw, key_added=key_added)
@@ -293,14 +279,15 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, m
     adata.raw.X.data = np.round(np.exp(adata.raw.X.data) - 1)
 
     if csc_transform:  # undo it
-        print('doing csc->csr')
+        logging.info('doing csc->csr')
         X = adata.raw.X.tocsr()
         _raw = sc.AnnData(X, obs=adata.obs, var=adata.raw.var)
         adata.raw = _raw
-        print('done csc->csr')
+        logging.info('done csc->csr')
 
 
     # filtering
+    logging.info('Filtering DE')
     sc.tl.filter_rank_genes_groups(adata,
                                    key=key_added,
                                    key_added=f'{key_added}_filtered',
@@ -310,6 +297,7 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, m
     # now make the filtered genes the default DE genes
     adata.uns[f'{key_added}_unfiltered'] = adata.uns[key_added]
     adata.uns[key_added] = adata.uns[f'{key_added}_filtered']
+    logging.info('Done Filtering DE')
 
 
 def export_for_cellxgene(adata, annotations):

@@ -92,22 +92,35 @@ def annotate_qc_metrics(adata):
     """
     is_sparse = isinstance(adata.X, spmatrix)
     # some numbers on the cells
-    MT_genes = [_ for _ in adata.var.index if _.startswith('MT-')]
     adata.obs['n_molecules'] = adata.X.sum(1).A.flatten() if is_sparse else adata.X.sum(1).flatten()
+    adata.obs['n_genes'] = (adata.X >0).sum(1).A.flatten() if is_sparse else (adata.X >0).sum(1).flatten()
 
+    # annotating mitochondiral content
+    """
+    for some reason `adata[:,MT_genes].X.sum(1)` creates a memory leak, (also some pandas warnings about is_categorical())
+    however, using the .raw version works fine?!
+    """
+    
+    adata.var['is_mito'] = adata.var.index.map(lambda x: x.startswith('MT-'))
+    
     if len(MT_genes) > 0:
-        adata.obs['n_mito'] = adata[:,MT_genes].X.sum(1).A.flatten() if is_sparse else adata[:,MT_genes].X.sum(1).flatten()
+        # MT_genes = [_ for _ in adata.var.index if _.startswith('MT-')]
+        # # memory leak:
+        # adata.obs['n_mito'] = adata[:,MT_genes].X.sum(1).A.flatten() if is_sparse else adata[:,MT_genes].X.sum(1).flatten()
+        
+        # this works fine, due to .raw
+        ix = adata.var.query('is_mito==True').index
+        adata.obs['n_mito'] = adata.raw[:,ix].X.sum(1).A.flatten() if is_sparse else adata.raw[:,ix].X.sum(1).flatten()
+
     else:
         # in case the dat adoesnt contain a single mitochondrial gene.
         # Unless we specifically filtered for this, that shoul never happen!!
         adata.obs['n_mito'] = 0
 
     adata.obs['percent_mito'] = adata.obs['n_mito'] / adata.obs['n_molecules']
-    adata.obs['n_genes'] = (adata.X >0).sum(1).A.flatten()  if is_sparse else (adata.X >0).sum(1).flatten()
 
-    adata.var['is_mito'] = adata.var.index.map(lambda x: x.startswith('MT-'))
+    # annotating robosomal content
     adata.var['is_ribo'] = adata.var.index.map(lambda x: x.startswith('RPS') or x.startswith('RPL'))
-
     adata.obs['n_ribo'] = adata.raw[:,adata.var.query('is_ribo==True').index].X.sum(1).A.flatten()
     adata.obs['percent_ribo'] = adata.obs['n_ribo'] / adata.obs['n_molecules']
 

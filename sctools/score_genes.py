@@ -187,7 +187,7 @@ def score_genes(
     else:
         X_control = np.nanmean(X_control, axis=1)
 
-    
+
     if len(gene_list) == 0:
         # We shouldn't even get here, but just in case
         logg.info(
@@ -205,16 +205,16 @@ def score_genes(
         score = X_list - X_control
 
     adata.obs[score_name] = pd.Series(np.array(score).ravel(), index=adata.obs_names)
-    
-    logg.info(
-        '    finished',
-        time=start,
-        deep=(
-            'added\n'
-            f'    {score_name!r}, score of gene set (adata.obs).\n'
-            f'    {len(control_genes)} total control genes are used.'
-        ),
-    )
+
+    # logg.info(
+    #     '    finished',
+    #     time=start,
+    #     deep=(
+    #         'added\n'
+    #         f'    {score_name!r}, score of gene set (adata.obs).\n'
+    #         f'    {len(control_genes)} total control genes are used.'
+    #     ),
+    # )
     return adata if copy else None
 
 
@@ -271,7 +271,7 @@ def score_genes_cell_cycle(
     ctrl_size = min(len(s_genes), len(g2m_genes))
     # add s-score
     score_genes(adata, gene_list=s_genes, score_name='S_score', ctrl_size=ctrl_size, **kwargs)
-    
+
     # add g2m-score
     score_genes(adata, gene_list=g2m_genes, score_name='G2M_score', ctrl_size=ctrl_size, **kwargs)
     scores = adata.obs[['S_score', 'G2M_score']]

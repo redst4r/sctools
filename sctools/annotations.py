@@ -100,14 +100,14 @@ def annotate_qc_metrics(adata):
     for some reason `adata[:,MT_genes].X.sum(1)` creates a memory leak, (also some pandas warnings about is_categorical())
     however, using the .raw version works fine?!
     """
-    
+
     adata.var['is_mito'] = adata.var.index.map(lambda x: x.startswith('MT-'))
-    
-    if len(MT_genes) > 0:
+
+    if len(adata.var.query('is_mito==True')) > 0:
         # MT_genes = [_ for _ in adata.var.index if _.startswith('MT-')]
         # # memory leak:
         # adata.obs['n_mito'] = adata[:,MT_genes].X.sum(1).A.flatten() if is_sparse else adata[:,MT_genes].X.sum(1).flatten()
-        
+
         # this works fine, due to .raw
         ix = adata.var.query('is_mito==True').index
         adata.obs['n_mito'] = adata.raw[:,ix].X.sum(1).A.flatten() if is_sparse else adata.raw[:,ix].X.sum(1).flatten()
@@ -121,11 +121,17 @@ def annotate_qc_metrics(adata):
 
     # annotating robosomal content
     adata.var['is_ribo'] = adata.var.index.map(lambda x: x.startswith('RPS') or x.startswith('RPL'))
-    adata.obs['n_ribo'] = adata.raw[:,adata.var.query('is_ribo==True').index].X.sum(1).A.flatten()
+    if len(adata.var.query('is_ribo==True')) > 0:
+        adata.obs['n_ribo'] = adata.raw[:,adata.var.query('is_ribo==True').index].X.sum(1).A.flatten()
+    else:
+        adata.obs['n_ribo'] = 0
     adata.obs['percent_ribo'] = adata.obs['n_ribo'] / adata.obs['n_molecules']
 
     nmg = [_ for _ in nuclear_mito_genes if _ in adata.var_names]
-    adata.obs['n_nuclear_mito'] = adata[:,nmg].X.sum(1).A.flatten() if is_sparse else adata[:,nmg].X.sum(1).flatten()
+    if len(nmg) > 0:
+        adata.obs['n_nuclear_mito'] = adata[:,nmg].X.sum(1).A.flatten() if is_sparse else adata[:,nmg].X.sum(1).flatten()
+    else:
+        adata.obs['n_nuclear_mito'] = 0 
     adata.obs['percent_nuclear_mito'] = adata.obs['n_nuclear_mito'] / adata.obs['n_molecules']
 
     return adata

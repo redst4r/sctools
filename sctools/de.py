@@ -99,6 +99,25 @@ def scanpy_DE_to_dataframe_fast(adata, key='rank_genes_groups'):
     to just get DE genes and their scores/pvals out of scanpy
 
     faster version to `scanpy_DE_to_dataframe`
+    
+    ------------------------
+    A note on the differential expression in scanpy, esp fold changes:
+    for a single gene X and groups A and B the fold change is calculated as:
+    
+    # log(1+x)
+    yA = np.log1p(X[group==A])
+    yB = np.log1p(X[group==B])
+    
+    # averaging
+    mA = yA.mean()
+    mB = yB.mean()
+
+    # undo log1p
+    nA = np.exp(nA)-1
+    nB = np.exp(nB)-1
+    
+    # calc log2 foldchange
+    np.log2(nA/nB)
     """
 
     rank_dict = adata.uns[key]
@@ -367,3 +386,48 @@ def plot_de(adata, scale=True, mode='boxplot', ngenes=5, qval_cutoff=0.2):
       # + pn.scale_y_log10() # pn.geom_violin() # + pn.scale_y_log10()
 
     return plot
+
+
+
+import statsmodels.api as sm
+from patsy import dmatrices
+from scipy.sparse import csc_matrix
+
+def _lm_de_helper(df, formula):
+    """
+    :param formula: something like: gene ~ diagnosis + patient
+    """
+    y, X = dmatrices(formula, data=df, return_type='dataframe')
+
+    # y, X = dmatrices('gene ~ C(diagnosis, Treatment(reference="N(true)"))', data=df, return_type='dataframe')
+
+    mod = sm.OLS(y, X)
+    res = mod.fit()
+
+    q = res.pvalues.copy()
+    q.index = q.index.map(lambda x: "pval_"+x)
+
+    w = res.params.copy()
+    w.index = w.index.map(lambda x: "coeff_"+x)
+    _series = pd.concat([q, w])
+    return _series
+
+
+def differential_expression_lm(adata, formula):
+    X = csc_matrix(adata.raw.X)  # usually much faster in csc
+    results = []
+    for i, gene in tqdm.tqdm(enumerate(adata.raw.var.index)):
+        df_tmp = adata.obs.copy()
+        df_tmp['gene'] = X[:, i].A
+        df_tmp['log_gene'] = np.log10(1+df_tmp['gene'])
+        df_tmp['rank_gene'] = df_tmp['gene'].rank()
+
+        if df_tmp['gene'].sum() == 0:  # gene not expressed
+            continue
+
+        _series = _lm_de_helper(df_tmp, formula)
+        _series['gene'] = gene
+
+        results.append(_series)
+    results = pd.DataFrame(results)
+    return results

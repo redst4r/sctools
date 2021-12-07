@@ -42,6 +42,8 @@ def recolor(adata, field, colors):
         if len(cats) > len(colors):
             colors = colors + colors
         cvector = [colors[i] for i in range(len(cats))]
+
+    assert all(c.startswith('#') and (len(c) == 7 or len(c) == 9 )for c in cvector), "colors invalid"
     adata.uns[colorfield] = cvector
 
 

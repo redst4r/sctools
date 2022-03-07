@@ -88,7 +88,7 @@ NonAmbientBarcodeResult = namedtuple('NonAmbientBarcodeResult',
 def find_nonambient_barcodes(adata, orig_cell_bcs,
                              min_umi_frac_of_median=MIN_UMI_FRAC_OF_MEDIAN,
                              min_umis_nonambient=MIN_UMIS,
-                             max_adj_pvalue=MAX_ADJ_PVALUE,):
+                             max_adj_pvalue=MAX_ADJ_PVALUE, n_cores=0):
     """ Call barcodes as being sufficiently distinct from the ambient profile
 
     Args:
@@ -165,7 +165,8 @@ def find_nonambient_barcodes(adata, orig_cell_bcs,
     obs_loglk = eval_multinomial_loglikelihoods(eval_mat, ambient_profile_p)
 
     # Simulate log likelihoods
-    distinct_ns, sim_loglk = simulate_multinomial_loglikelihoods(ambient_profile_p, umis_per_bc[eval_bcs], num_sims=10000, verbose=True)
+    # this needs to be paralellized!
+    distinct_ns, sim_loglk = simulate_multinomial_loglikelihoods(ambient_profile_p, umis_per_bc[eval_bcs], num_sims=10000, verbose=True, n_cores=n_cores)
 
     # Compute p-values
     pvalues = compute_ambient_pvalues(umis_per_bc[eval_bcs], obs_loglk, distinct_ns, sim_loglk)
@@ -204,8 +205,89 @@ def eval_multinomial_loglikelihoods(matrix, profile_p, max_mem_gb=0.1):
         loglk[chunk] = sp_stats.multinomial.logpmf(matrix_chunk, n, p=profile_p)
     return loglk
 
+
 import tqdm
+
+def _sim(profile_p, distinct_n, jump, n_sample_feature_block=1000000):
+    log_profile_p = np.log(profile_p)
+    loglk = np.zeros((len(distinct_n)), dtype=float)
+
+    curr_counts = np.ravel(sp_stats.multinomial.rvs(distinct_n[0], profile_p, size=1))
+    curr_loglk = sp_stats.multinomial.logpmf(curr_counts, distinct_n[0], p=profile_p)
+
+    loglk[0] = curr_loglk
+
+    # this is a reservoir of random genes that get incremeted
+    sampled_features = np.random.choice(len(profile_p), size=n_sample_feature_block, p=profile_p, replace=True)
+    k = 0
+
+    for i in range(1, len(distinct_n)):
+        step = distinct_n[i] - distinct_n[i-1]
+        if step >= jump:
+            # Instead of iterating for each n, sample the intermediate ns all at once
+            curr_counts += np.ravel(sp_stats.multinomial.rvs(step, profile_p, size=1))
+            curr_loglk = sp_stats.multinomial.logpmf(curr_counts, distinct_n[i], p=profile_p)
+            assert not np.isnan(curr_loglk)
+        else:
+            # Iteratively sample between the two distinct values of n
+            for n in range(distinct_n[i-1]+1, distinct_n[i]+1):
+                j = sampled_features[k]
+                k += 1
+                if k >= n_sample_feature_block:
+                    # Amortize this operation
+                    sampled_features = np.random.choice(len(profile_p), size=n_sample_feature_block, p=profile_p, replace=True)
+                    k = 0
+                curr_counts[j] += 1
+                curr_loglk += log_profile_p[j] + np.log(float(n)/curr_counts[j])
+
+        loglk[i] = curr_loglk
+
+    return loglk
+
+import multiprocessing as mp
+
 def simulate_multinomial_loglikelihoods(profile_p, umis_per_bc,
+                                        num_sims=1000, jump=1000,
+                                        n_sample_feature_block=1000000, verbose=False, n_cores=0):
+    """Simulate draws from a multinomial distribution for various values of N.
+       Uses the approximation from Lun et al. ( https://www.biorxiv.org/content/biorxiv/early/2018/04/04/234872.full.pdf )
+    Args:
+      profile_p (np.ndarray(float)): Probability of observing each feature.
+      umis_per_bc (np.ndarray(int)): UMI counts per barcode (multinomial N).
+      num_sims (int): Number of simulations per distinct N value.
+      jump (int): Vectorize the sampling if the gap between two distinct Ns exceeds this.
+      n_sample_feature_block (int): Vectorize this many feature samplings at a time.
+    Returns:
+      (distinct_ns (np.ndarray(int)), log_likelihoods (np.ndarray(float)):
+      distinct_ns is an array containing the distinct N values that were simulated.
+      log_likelihoods is a len(distinct_ns) x num_sims matrix containing the
+        simulated log likelihoods.
+    """
+    distinct_n = np.flatnonzero(np.bincount(umis_per_bc))
+
+    loglk = np.zeros((len(distinct_n), num_sims), dtype=float)
+    num_all_n = np.max(distinct_n) - np.min(distinct_n)
+
+
+    sampled_features = np.random.choice(len(profile_p), size=n_sample_feature_block, p=profile_p, replace=True)
+    k = 0
+
+    import tqdm
+    if n_cores==0:
+        for sim_idx in tqdm.trange(num_sims):
+            loglk[:, sim_idx] = _sim(profile_p, distinct_n, jump, n_sample_feature_block)
+    else:
+        print('parallel')
+        with mp.Pool(n_cores) as pool:
+            res = pool.starmap(_sim, ((profile_p, distinct_n, jump, n_sample_feature_block) for _ in range(num_sims)))
+            loglk = np.stack(res).T
+
+    return distinct_n, loglk
+
+
+
+
+def simulate_multinomial_loglikelihoods_old(profile_p, umis_per_bc,
                                         num_sims=1000, jump=1000,
                                         n_sample_feature_block=1000000, verbose=False):
     """Simulate draws from a multinomial distribution for various values of N.

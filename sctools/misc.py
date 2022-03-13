@@ -6,6 +6,8 @@ from scipy.sparse import issparse, isspmatrix_csr, csr_matrix
 # from sklearn.utils import sparsefuncs, check_array
 # from pandas.api.types import is_categorical_dtype
 # from anndata import AnnData
+import h5py
+from anndata._io.h5ad import read_dataframe
 
 
 class Verbose(object):
@@ -101,3 +103,11 @@ def _downsample_array(
             geneptr += 1
         col[geneptr] += 1
     return col
+
+def load_obs(h5ad_filename):
+    """
+    loads the obs-dataframe only
+    """
+    with h5py.File(h5ad_filename, 'r') as f:
+        obs = read_dataframe(f['/obs'])
+    return obs

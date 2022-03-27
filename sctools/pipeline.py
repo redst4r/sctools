@@ -346,3 +346,10 @@ def annotate_doublets(adata, groupby='samplename', PLOTTING=False, expected_doub
     adata.obs['doublet_score'] = doublet_vectors[adata.obs.index]
 
     return adata
+
+
+import scHCLpy.adata
+def annotate_celltype(adata):
+    dfadata, _ = scHCLpy.adata.scHCL_adata(adata, verbose=True, n_cores=4)
+    adata.obs = adata.obs.merge(dfadata, left_index=True, right_index=True)
+    return adata

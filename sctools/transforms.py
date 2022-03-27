@@ -126,3 +126,9 @@ def adata_merge(adatas, security_check=True, verbose=True, memory_save=False):
 
     q.var = reference_var.copy()
     return q
+
+
+def split_adata(adata, split_field):
+    for group in adata.obs[split_field].unique():
+        asplit = adata[adata.obs[split_field]==group].copy()
+        yield group, asplit

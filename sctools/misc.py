@@ -104,6 +104,7 @@ def _downsample_array(
         col[geneptr] += 1
     return col
 
+
 def load_obs(h5ad_filename):
     """
     loads the obs-dataframe only

@@ -99,15 +99,15 @@ def scanpy_DE_to_dataframe_fast(adata, key='rank_genes_groups'):
     to just get DE genes and their scores/pvals out of scanpy
 
     faster version to `scanpy_DE_to_dataframe`
-    
+
     ------------------------
     A note on the differential expression in scanpy, esp fold changes:
     for a single gene X and groups A and B the fold change is calculated as:
-    
+
     # log(1+x)
     yA = np.log1p(X[group==A])
     yB = np.log1p(X[group==B])
-    
+
     # averaging
     mA = yA.mean()
     mB = yB.mean()
@@ -115,7 +115,7 @@ def scanpy_DE_to_dataframe_fast(adata, key='rank_genes_groups'):
     # undo log1p
     nA = np.exp(nA)-1
     nB = np.exp(nB)-1
-    
+
     # calc log2 foldchange
     np.log2(nA/nB)
     """
@@ -416,11 +416,12 @@ def _lm_de_helper(df, formula):
 def differential_expression_lm(adata, formula):
     X = csc_matrix(adata.raw.X)  # usually much faster in csc
     results = []
-    for i, gene in tqdm.tqdm(enumerate(adata.raw.var.index)):
+    for i, gene in tqdm.tqdm(enumerate(adata.raw.var.index), total=adata.raw.shape[1]):
         df_tmp = adata.obs.copy()
         df_tmp['gene'] = X[:, i].A
         df_tmp['log_gene'] = np.log10(1+df_tmp['gene'])
         df_tmp['rank_gene'] = df_tmp['gene'].rank()
+        df_tmp['norm_gene'] = df_tmp['gene'] / adata.obs['n_molecules']
 
         if df_tmp['gene'].sum() == 0:  # gene not expressed
             continue

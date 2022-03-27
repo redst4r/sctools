@@ -12,7 +12,7 @@ def annotate_gene_symbols(Q):
     (maybe a newr/older version of the transcriptome than used in biomarkt)
     hence lets use the UNVERSIONED id
     """
-    
+
     # some weirdness usingthe kallisto-velocity transcriptome-index
     Q.var['ensembl_gene_id'] = Q.var.index.map(lambda x: x.split('.')[0] if not x.endswith('_PAR_Y') else x.split('.')[0]+'_PAR_Y')
 

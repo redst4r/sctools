@@ -1,6 +1,6 @@
 import scanpy as sc
-from sctools import annotate_qc_metrics, annotate_coding_genes
-from sctools.annotations import annotate_cellcycle
+from sctools import annotate_coding_genes, adata_merge
+from sctools.annotations import annotate_cellcycle, annotate_qc_metrics
 import numpy as np
 import scrublet as scr
 import pandas as pd
@@ -8,9 +8,62 @@ import gc
 import harmonypy as ha
 import warnings
 import logging
+from sctools.transforms import split_adata 
+from sctools.misc import _downsample_total_counts
 
 
 logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO)
+
+
+def downsample(adata, split_field):
+    """
+    Downsample each sample in the adata to the same amount of counts (the minimum of all samples).
+    recompute quality stats and return the downsampled adata
+    """
+    nmols = {}
+    for g, ad in split_adata(adata, split_field):
+        nmols[g] = ad.raw.X.sum()
+    min_nmol = min(nmols.values())
+    print(nmols)
+    print(f'downsampling to {min_nmol}')
+    adata_down = []
+    for g, ad in split_adata(adata, split_field):
+        if min_nmol != ad.raw.X.sum():
+            newX = _downsample_total_counts(ad.raw.X, min_nmol, random_state=0, replace=False)
+            adata_down.append(sc.AnnData(newX, obs=ad.obs, var=ad.raw.var))
+        else:
+            adata_down.append(sc.AnnData(ad.raw.X, obs=ad.obs, var=ad.raw.var))
+
+    AD = adata_merge(adata_down)
+    AD.raw = AD
+    AD = annotate_qc_metrics(AD)
+ 
+    new_nmol = {}
+    for g, ad in split_adata(AD, split_field):
+        new_nmol[g] = ad.raw.X.sum()
+    print(new_nmol)
+    return AD
+
+
+def annotate_topN_barcodes(adata, k, split=None):
+    """
+    mark the k cells with the highest UMI counts per sample
+    :param split: split adata according to adata.obs[split]
+    """
+    assert 'n_molecules' in adata.obs.columns, "n_molecules not defined"
+
+    if split is None:  # no splitting
+        ix = np.argsort(adata.obs['n_molecules'].values)[::-1][:k]
+        cbs = adata.obs.index.values[ix]
+    else:
+        cbs = []
+        for g in adata.obs[split].unique():
+            df = adata.obs.query(f'{split}==@g')
+            ix = np.argsort(df.n_molecules.values)[::-1][:k]
+            cbs.extend(df.index.values[ix].tolist())
+    adata.obs['is_cell'] = 'no'
+    adata.obs.loc[cbs, 'is_cell'] ='yes'
+    return adata
 
 
 def standard_processing(adata, detect_doublets=True, MITO_CUTOFF=0.4):
@@ -348,8 +401,8 @@ def annotate_doublets(adata, groupby='samplename', PLOTTING=False, expected_doub
     return adata
 
 
-import scHCLpy.adata
 def annotate_celltype(adata):
+    import scHCLpy.adata
     dfadata, _ = scHCLpy.adata.scHCL_adata(adata, verbose=True, n_cores=4)
     adata.obs = adata.obs.merge(dfadata, left_index=True, right_index=True)
     return adata

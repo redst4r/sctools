@@ -1,6 +1,4 @@
 import scanpy as sc
-from sctools import annotate_coding_genes, adata_merge
-from sctools.annotations import annotate_cellcycle, annotate_qc_metrics
 import numpy as np
 import scrublet as scr
 import pandas as pd
@@ -8,28 +6,23 @@ import gc
 import harmonypy as ha
 import warnings
 import logging
-from sctools.transforms import split_adata 
+from sctools.annotations import annotate_cellcycle, annotate_qc_metrics, annotate_coding_genes
+from sctools.transforms import split_adata, adata_merge
 from sctools.misc import _downsample_total_counts
 
 
 logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO)
 
 
-def downsample(adata, split_field):
+def _downsample(adata:sc.AnnData, split_field:str, umi_per_sample:dict):
     """
-    Downsample each sample in the adata to the same amount of counts (the minimum of all samples).
-    recompute quality stats and return the downsampled adata
+    Downsample each sample in the adata to the specified amount in umi_per_sample
     """
-    nmols = {}
-    for g, ad in split_adata(adata, split_field):
-        nmols[g] = ad.raw.X.sum()
-    min_nmol = min(nmols.values())
-    print(nmols)
-    print(f'downsampling to {min_nmol}')
     adata_down = []
     for g, ad in split_adata(adata, split_field):
-        if min_nmol != ad.raw.X.sum():
-            newX = _downsample_total_counts(ad.raw.X, min_nmol, random_state=0, replace=False)
+        target_nmol = umi_per_sample[g]
+        if target_nmol != ad.raw.X.sum():
+            newX = _downsample_total_counts(ad.raw.X, target_nmol, random_state=0, replace=False)
             adata_down.append(sc.AnnData(newX, obs=ad.obs, var=ad.raw.var))
         else:
             adata_down.append(sc.AnnData(ad.raw.X, obs=ad.obs, var=ad.raw.var))
@@ -37,11 +30,23 @@ def downsample(adata, split_field):
     AD = adata_merge(adata_down)
     AD.raw = AD
     AD = annotate_qc_metrics(AD)
- 
-    new_nmol = {}
-    for g, ad in split_adata(AD, split_field):
-        new_nmol[g] = ad.raw.X.sum()
-    print(new_nmol)
+    return AD
+
+def downsample(adata:sc.AnnData, split_field:str):
+    """
+    Downsample each sample in the adata to the same amount of counts (the minimum of all samples).
+    recompute quality stats and return the downsampled adata
+    """
+
+    # determine counts per sample and find minimum
+    nmols = {}
+    for g, ad in split_adata(adata, split_field):
+        nmols[g] = ad.raw.X.sum()
+    min_nmol = min(nmols.values())
+
+    print(f'downsampling to {min_nmol}')
+    n_target = {g: min_nmol for g in nmols.keys()}  # set each target amount to min
+    AD = _downsample(adata, split_field, n_target)
     return AD
 
 

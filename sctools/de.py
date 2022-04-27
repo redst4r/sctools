@@ -414,6 +414,9 @@ def _lm_de_helper(df, formula):
 
 
 def differential_expression_lm(adata, formula):
+    """
+    formula: left hand side: gene, log_gene, rank_gene, norm_gene
+    """
     X = csc_matrix(adata.raw.X)  # usually much faster in csc
     results = []
     for i, gene in tqdm.tqdm(enumerate(adata.raw.var.index), total=adata.raw.shape[1]):
@@ -428,6 +431,8 @@ def differential_expression_lm(adata, formula):
 
         _series = _lm_de_helper(df_tmp, formula)
         _series['gene'] = gene
+        _series['avg_expression'] = df_tmp['gene'].mean()
+        _series['avg_normed_expression'] = df_tmp['norm_gene'].mean()
 
         results.append(_series)
     results = pd.DataFrame(results)

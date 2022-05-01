@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 import numpy as np
+import tqdm
 
 godsnot_64 = [
     # "#000000",  # remove the black, as often, we have black colored annotation
@@ -81,3 +82,56 @@ def kneeplot_split(adata, splitfield='samplename'):
 
         plt.grid(True, which="both")
         ax.legend()
+
+
+from sctools.transforms import split_adata
+from scipy.stats import poisson
+import pandas as pd
+
+def sparse_var(X, axis):
+    """
+    calc variance of sparse matrix
+    """
+    m = X.mean(axis).A1
+    _t = X.copy()
+    _t.data = _t.data**2
+    return _t.mean(axis).A1 - m**2
+
+def mean_var_relation(adata):
+    mean_exp = adata.X.mean(0).A1
+    var_exp = sparse_var(adata.X, axis=0)
+    detection_rate = (adata.X>0).mean(0).A1
+
+    mean_var_df = pd.DataFrame({
+        'mean_exp': mean_exp,
+        'var_exp': var_exp,
+        'detection_rate': detection_rate,
+        'gene': adata.var.index.values
+    })
+    mean_var_df['poisson_detection_rate'] = 1 - poisson.pmf(0, mu=mean_var_df.mean_exp)
+    return mean_var_df
+
+
+def mean_var_relation_split(adata, split):
+    mean_var_df  = []
+    for sname, a in tqdm.tqdm(split_adata(adata, split_field=split)):
+        _d = mean_var_relation(a)
+        _d[split] = sname
+        mean_var_df.append(_d)
+
+    mean_var_df = pd.concat(mean_var_df)
+    return mean_var_df
+
+import plotnine as pn
+def plot_mean_var(adata, split=None):
+    if split is None:
+        df = mean_var_relation(adata)
+    else:
+        df = mean_var_relation_split(adata, split)
+
+    p1 = pn.ggplot(df, pn.aes('mean_exp', "var_exp")) + pn.geom_point(size=0.1, alpha=0.1) + pn.geom_abline(slope=1, color='red') +pn.scale_x_log10() + pn.scale_y_log10()
+    p2 = pn.ggplot(df, pn.aes('mean_exp', "detection_rate")) + pn.geom_point(size=0.1, alpha=0.1) +pn.scale_x_log10() + pn.geom_line(pn.aes('mean_exp', "poisson_detection_rate"), color='red')
+    if split is not None:
+        p1 = p1 + pn.facet_wrap('samplename')
+        p2 = p2 + pn.facet_wrap('samplename')
+    return p1, p2

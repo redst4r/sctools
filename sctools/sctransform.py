@@ -28,34 +28,49 @@ def sctransform(adata, n_genes=2000, return_hvg_only=True):
     ro.r(f'res <- SCTransform(object=seurat_obj, assay="originalexp", vst.flavor = "v2",  method = "glmGamPoi", return.only.var.genes = {hvg_bool}, do.correct.umi = TRUE, n_genes={n_genes})')  # , vars.to.regress = "percent_mito",
 
     with localconverter(ro.default_converter + ro.pandas2ri.converter + anndata2ri.converter):
-        # res = ro.r('as.SingleCellExperiment(res)')
         model_fit = ro.r('as.data.frame(res$SCT@SCTModel.list$model1@feature.attributes)')
         pearson_resid = ro.r('as.data.frame(res@assays$SCT@scale.data)').T  # not sparse!
-        # corrected_UMIs = ro.r('as.data.frame(res@assays$SCT@counts)').T     # sparse, but returned as DF
+        corrected_UMIs = ro.r('res@assays$SCT@counts')     # sparse, turns into a scipy.spmatrix
+        # somehow r->np conversion is not handled by the ro.numpy2ri.converter, but has to be called via np.array(...)
+        corrected_UMIs_rownames = np.array(ro.r('rownames(res@assays$SCT@counts)'))  # those are the genes
+        corrected_UMIs_colnames = np.array(ro.r('colnames(res@assays$SCT@counts)'))  # those are the cells
+
+    """
+    some clarification:
+    - `corrected UMIs` will always be full dimension (all genes)
+    - `pearson_resid` will vary: if return_hvg_only, this will have less genes
+    Hence we cant always store those two in the same adata.
+    """
+
+    """
+    building the adata with the corrected UMI counts
+    """
+    at_norm_umi = sc.AnnData(
+        corrected_UMIs.T,
+        obs=adata.obs.loc[corrected_UMIs_colnames],
+        var=model_fit.loc[corrected_UMIs_rownames]
+    )
+    at_norm_umi.uns['sctransform_model'] = model_fit
+
+
+    """
+    building the adata with the pearson residuals
+    """
+    at_pearson = sc.AnnData(pearson_resid.values,
+                    obs=adata.obs.loc[pearson_resid.index],
+                    var=model_fit.loc[pearson_resid.columns.values])
+    at_pearson.uns['sctransform_model'] = model_fit
+
+    """
+    some explanation on the model_fit DataFrame:
+    We fit a NB-model where the linear part is:
+    log(mu) = beta0 + beta1 * log(n_umi)
+
+    - log_umi: this is the COEFFICIENT beta1 (confusing naming!!). This is actually fixed to log(10)
+    - (Intercept): beta0
         """
-        some clarification:
-        - `corrected UMIs` will always be full dimension (all genes)
-        - `pearson_resid` will vary: if return_hvg_only, this will have less genes
-        Hence we cant always store those two in the same adata.
 
-        TODO: pull corrected_umis not as a dataframe, but as a sparse matrix!!
-        """
-
-        at = sc.AnnData(pearson_resid.values,
-                        obs=adata.obs.loc[pearson_resid.index],
-                        var=model_fit.loc[pearson_resid.columns.values])
-        at.uns['sctransform_model'] = model_fit
-
-        """
-        some explanation on the model_fit DataFrame:
-        We fit a NB-model where the linear part is:
-        log(mu) = beta0 + beta1 * log(n_umi)
-
-        - log_umi: this is the COEFFICIENT beta1 (confusing naming!!). This is actually fixed to log(10)
-        - (Intercept): beta0
-        """
-
-    return at
+    return at_pearson, at_norm_umi
 
 
 def plot_variance(adata):

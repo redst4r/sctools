@@ -10,6 +10,7 @@ import scanpy as sc
 import numpy as np
 import pandas as pd
 import plotnine as pn
+from scipy.stats import nbinom
 
 def sctransform(adata, n_genes=2000, return_hvg_only=True):
     """
@@ -113,6 +114,13 @@ def plot_model(adata):
     return p1, p2, p3
 
 
+def negative_binomial_transform_params(mu, theta):
+    mean = mu
+    var = mean + (mean**2)/theta
+    n = mean**2 / (var - mean)
+    p = mean / var
+    return n, p
+
 def predict_model(sct_df, gene, n_molecules):
     """
     predict the gene expression value under the SCT model for a given gene and a vector of sequencing depth per cell (n_molecules)
@@ -129,15 +137,24 @@ def predict_model(sct_df, gene, n_molecules):
     var = mu + (mu**2 / theta)
     std = np.sqrt(var)
 
+    n, p = negative_binomial_transform_params(mu, theta)
+    NB = nbinom(n, p)
+
     model_data = pd.DataFrame({
         'n_molecules': n_molecules,
         'mu': mu,
         'theta': theta,
-        'std': std
+        'std': std,
+        'q1': NB.ppf(0.01),
+        'q5': NB.ppf(0.05),
+        'q95': NB.ppf(0.95),
+        'q99': NB.ppf(0.99),
+        'nb_mean': NB.mean()
+
     }).sort_values('n_molecules')
     return model_data
 
-def plot_model_fit(adata_sc, adata_raw, gene, color=None):
+def plot_model_fit(adata_sc, adata_raw, gene, color=None, plot_quantiles=True):
     """
     plot the n_molecules vs expression relation for the actual data and the model prediction
     """
@@ -151,7 +168,13 @@ def plot_model_fit(adata_sc, adata_raw, gene, color=None):
     model_data = predict_model(sct_df, gene, adata_raw.obs.n_molecules.values)
 
     # the model: expected epxresion +/- std
-    pn_model = pn.ggplot(model_data, pn.aes('n_molecules', '1+mu')) + pn.geom_line(size=2) + pn.geom_line(pn.aes('n_molecules', '1+mu+std'), color='grey', size=2) + pn.geom_line(pn.aes('n_molecules', '1+mu-std'),size=2, color='grey')
+    pn_model = pn.ggplot(model_data, pn.aes('n_molecules', '1+mu')) + pn.geom_line(size=2)
+    if plot_quantiles:
+        pn_model += pn.geom_line(pn.aes('n_molecules', '1+q1'), color='grey', size=2, linetype='dashed')
+        pn_model += pn.geom_line(pn.aes('n_molecules', '1+q99'), color='grey', size=2,  linetype='dashed')
+    else:
+        pn_model += pn.geom_line(pn.aes('n_molecules', '1+mu+std'), color='darkgrey', size=2)
+        pn_model += pn.geom_line(pn.aes('n_molecules', '1+mu-std'),size=2, color='darkgrey') \
 
     # raw data plot
 #     color = 'pearson_residual' if color is None else color

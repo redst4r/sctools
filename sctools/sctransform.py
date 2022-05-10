@@ -74,23 +74,25 @@ def sctransform(adata, n_genes=2000, return_hvg_only=True):
     return at_pearson, at_norm_umi
 
 
-def plot_variance(adata):
+def plot_variance(adata, figure_size=(3,3)):
     """
     plot the mean variance relation and the residual variance (after sctransform)
     """
+    theme = pn.theme(figure_size=figure_size)
+
     df_sctransform = adata.uns['sctransform_model'].copy()
     hvg_genes = set(adata.var.index)
     df_sctransform['is_HVG'] = df_sctransform.index.map(lambda x: 'yes' if x in hvg_genes else 'no')
 
     points =  pn.geom_point(alpha=0.2, size=0.2)
-    p1 = pn.ggplot(df_sctransform, pn.aes('gmean', 'variance', color='is_HVG')) + points + pn.geom_abline(slope=1, color='red') + pn.scale_x_log10()+ pn.scale_y_log10()
-    p2 = pn.ggplot(df_sctransform, pn.aes('gmean', 'residual_variance', )) + points + pn.scale_x_log10()+ pn.scale_y_log10()  + pn.geom_density_2d(color='red')
+    p1 = pn.ggplot(df_sctransform, pn.aes('gmean', 'variance', color='is_HVG')) + points + pn.geom_abline(slope=1, color='red') + pn.scale_x_log10()+ pn.scale_y_log10() + theme
+    p2 = pn.ggplot(df_sctransform, pn.aes('gmean', 'residual_variance', )) + points + pn.scale_x_log10()+ pn.scale_y_log10()  + pn.geom_density_2d(color='red') + theme
 
     return p1, p2
 
 
 import plydata
-def plot_model(adata):
+def plot_model(adata, figure_size=(3,3)):
     """
     plot the fitted model parameters
     """
@@ -101,7 +103,7 @@ def plot_model(adata):
     # define OD
     df_sctransform = df_sctransform >> plydata.define(step1_OD='1+ gmean/step1_theta', OD='1+ gmean/theta')
 
-    theme = pn.theme(figure_size=(3,3))
+    theme = pn.theme(figure_size=figure_size)
     # Mean vs Intercept
     p1 = pn.ggplot(df_sctransform, pn.aes('gmean', 'step1_(Intercept)', color='is_HVG')) + pn.geom_point(size=0.5) + pn.scale_x_log10() + pn.geom_point(pn.aes('gmean', y='(Intercept)'), size=0.1, color='black') + theme + pn.labs(title='Mean vs Intercept')
 

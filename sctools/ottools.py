@@ -161,7 +161,90 @@ def mds_embedding(df_flat, distance_field='debiased_distance'):
     plt.figure(figsize=(10,5))
     plt.subplot(121)
     sns.scatterplot(x='mds1', y='mds2', hue='samplename', data=df, legend=False)
-    
+
     plt.subplot(122)
     sns.scatterplot(x='mds1', y='mds2', hue='samplename', data=df)
     plt.legend()
+
+
+def _get_edges_from_transport_plan(transport_plan, n_lines):
+    """
+    note: this gets only the most important (weighted) directed edges from SOURCE->TARGET
+    to get the other way around, just run on the transpose
+    """
+    # lets collect all edges that we want to draw in a mask/adjacency matrix first
+    adj_mat = np.zeros_like(transport_plan)
+    for i in tqdm.trange(transport_plan.shape[0]):
+        conditional_map = transport_plan[i]/transport_plan[i].sum()  # where does datapoint i get transformed to
+        pdf = np.sort(conditional_map)[::-1]
+#         cdf =  np.cumsum(pdf)
+#         cutoff = np.min(pdf[cdf <= 0.95])
+        cutoff = pdf[n_lines]
+        ix = conditional_map > cutoff
+        adj_mat[i,:] = ix
+    return adj_mat
+        # ix2plot = np.where(ix)[0]
+
+def visualize_transport(X1, X2, gamma, n_lines, size=5, background_X=None, cost_matrix=None, linewidth=1, linealpha=0.1, figsize=(10,10)):
+    """
+    cost_matrix: this would be a cell-by-cell distance matrix, used to color the edges according to the cost of moving source to target
+    n_lines: for each datapoint in the source distriubtion, plot only the first n_lines targets (with strongest association)
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib import collections  as mc
+
+    assert len(X1) == gamma.shape[0]
+    assert len(X2) == gamma.shape[1]
+
+    fig, ax = plt.subplots(figsize=figsize)
+    if background_X is not None:
+        plt.scatter(background_X[:, 0], background_X[:, 1], s=size, alpha=0.4, c='grey')
+
+    plt.scatter(X1[:, 0], X1[:, 1], s=size)
+    plt.scatter(X2[:, 0], X2[:, 1], s=size)
+
+    # lets collect all edges that we want to draw in a mask/adjacency matrix first
+    adj_mat1 = _get_edges_from_transport_plan(gamma, n_lines)
+    adj_mat2 = _get_edges_from_transport_plan(gamma.T, n_lines).T
+    print('n_entries1', np.sum(adj_mat1 > 0))
+    print('n_entries2', np.sum(adj_mat2 > 0))
+
+    adj_mat = adj_mat1 + adj_mat2
+    print('n_entries', np.sum(adj_mat > 0))
+
+
+    if cost_matrix is not None:
+        emin = cost_matrix[adj_mat != 0].min()
+        emax = cost_matrix[adj_mat != 0].max()
+        edgecolor_matrix = cost_matrix * adj_mat - emin
+        edgecolor_matrix /= emax
+
+    colors = []
+    lines = []
+
+    for i in tqdm.trange(len(X1)):
+        for j in range(len(X2)):
+            if adj_mat[i, j] != 0:
+                if cost_matrix is not None:
+                    col_ix = edgecolor_matrix[i,j]
+                    col = plt.cm.viridis(col)
+                else:
+                    col='black'
+                # print(col)
+                colors.append(col)
+                lines.append(
+                    [(X1[i,0], X1[i,1]),
+                     (X2[j,0], X2[j,1])
+                    ]
+                )
+
+                # plt.plot([X1[i,0], X2[j,0]], [X1[i,1], X2[j,1]],
+                #          alpha=0.3,
+                #          color=plt.cm.cool(col))
+
+    print('#lines:', len(lines))
+
+    lc = mc.LineCollection(lines, colors=colors, linewidths=linewidth, alpha=linealpha)
+    ax.add_collection(lc)
+    plt.colorbar()
+    plt.show()

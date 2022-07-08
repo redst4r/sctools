@@ -56,23 +56,96 @@ def calc_patient_matrix(adata, cost_matrix, group_name, ot_method, ot_params=Non
 
     def ot_function(mat):
         if ot_method =='exact':
-            return ot.emd2([],[],mat, numItermax=500_000)
+            transport_plan = ot.emd([], [], mat, numItermax=500_000)
         else:
-            return ot.sinkhorn2([],[],mat, reg=ot_params['lambda'] ,numItermax=5_000)
+            # in ot <0.8 theres a bug where sinkhorn2 still returns the transport map
+            # they fixed in in 0.8
+            # to cirvumvent this issue, just use sinkhorn() and compute the cost ourselves
+            #
+            # we rescale mat by its maximum here for numeric stability; doesnt affect teh solutiuon
+            transport_plan = ot.sinkhorn([], [], mat/mat.max(), reg=ot_params['lambda'], numItermax=5_000)
+
+        return np.sum(mat*transport_plan), transport_plan
 
     debias_ot = {}  # store the OT(a,a) in here
     for g in tqdm.tqdm(adata.obs[group_name].unique(), desc='debiasing terms'):
         filtered_D, _, _ = get_filtered_matrix(adata, cost_matrix, g, g, group_name)
-        debias_ot[g] = ot_function(filtered_D)
-        dmat_emd_df.append({'group1': g, 'group2': g, 'distance': debias_ot[g], 'debiased_distance': 0 , 'upper_tria': 'no'})
+        debias_ot[g], _ = ot_function(filtered_D)
+        dmat_emd_df.append({'group1': g, 'group2': g, 'distance': debias_ot[g], 'debiased_distance': 0, 'upper_tria': 'no'})
 
-
+    transport_plans = {}
     for g1, g2, filtered_D in tqdm.tqdm(yield_pairs(adata, cost_matrix, group_name), desc='OT pairs'):
-        wd2 = ot_function(filtered_D)
+        wd2, transport_plans[(g1,g2)] = ot_function(filtered_D)
         wd2_debiased = wd2 - 0.5 * debias_ot[g1] - 0.5 * debias_ot[g2]
         dmat_emd_df.append({'group1': g1, 'group2': g2, 'distance': wd2, 'debiased_distance':wd2_debiased, 'upper_tria': 'yes'})
         dmat_emd_df.append({'group1': g2, 'group2': g1, 'distance': wd2, 'debiased_distance':wd2_debiased, 'upper_tria': 'no'})  # symmetric
     return pd.DataFrame(dmat_emd_df)
+
+
+
+def yield_pairs_compute_cost(adata, cost_matrix_fn, group_name):
+    """ computing the cost matrix, instead of just subsetting the HUGE matrix
+    """
+    groups = np.sort(np.unique(adata.obs[group_name].values))
+
+    print(f'Comparing {len(groups)} groups')
+    for i, g1 in enumerate(groups):
+        for j, g2 in enumerate(groups):
+            if i>=j: continue
+
+            ix1 = np.where(adata.obs[group_name]==g1)[0]
+            ix2 = np.where(adata.obs[group_name]==g2)[0]
+
+            filtered_D = cost_matrix_fn(adata[ix1], adata[ix2] )
+            yield g1, g2, filtered_D
+
+
+def calc_patient_matrix_cost_matrix_on_the_fly(adata, cost_matrix_fn, group_name, ot_method, ot_params=None, verbose=False):
+    """
+    this calculates the cost matrix separatley for each pair, instead of one HUGE matrix and indexing into it
+
+    main OT function: given an attribute [in .obs] calcualte OT beetween cells from those groups
+    """
+    if ot_params is None:
+        ot_params = {}
+
+    assert ot_method in ['exact', 'entropy']
+    if ot_method == 'entropy':
+        assert 'lambda' in ot_params
+
+    dmat_emd_df = []
+
+    def ot_function(mat):
+        if ot_method == 'exact':
+            transport_plan = ot.emd([], [], mat, numItermax=500_000)
+        else:
+            # we rescale mat by its maximum here for numeric stability; doesnt affect teh solutiuon
+            transport_plan = ot.sinkhorn([], [], mat/mat.max(), reg=ot_params['lambda'], numItermax=5_000)
+        return np.sum(mat*transport_plan), transport_plan
+
+    debias_ot = {}  # store the OT(a,a) in here
+    for g in tqdm.tqdm(adata.obs[group_name].unique(), desc='debiasing terms'):
+        a1 = adata[adata.obs[group_name] == g]
+        if verbose:
+            print(f'Comp. distance matrix: {g} vs {g}: {len(a1)}x{len(a1)}')
+        filtered_D = cost_matrix_fn(a1, a1)
+        if verbose:
+            print(f'Comp. OT: {g} vs {g}: {len(a1)}x{len(a1)}')
+
+        debias_ot[g], _ = ot_function(filtered_D)
+        dmat_emd_df.append({'group1': g, 'group2': g, 'distance': debias_ot[g], 'debiased_distance': 0 , 'upper_tria': 'no'})
+
+    transport_plans = {}
+    for g1, g2, filtered_D in tqdm.tqdm(yield_pairs_compute_cost(adata, cost_matrix_fn, group_name), desc='OT pairs'):
+        if verbose:
+            print(f'{g1} vs {g2}: {filtered_D.shape}')
+        wd2, transport_plans[(g1,g2)] = ot_function(filtered_D)
+        if verbose:
+            print('done')
+        wd2_debiased = wd2 - 0.5 * debias_ot[g1] - 0.5 * debias_ot[g2]
+        dmat_emd_df.append({'group1': g1, 'group2': g2, 'distance': wd2, 'debiased_distance':wd2_debiased, 'upper_tria': 'yes'})
+        dmat_emd_df.append({'group1': g2, 'group2': g1, 'distance': wd2, 'debiased_distance':wd2_debiased, 'upper_tria': 'no'})  # symmetric
+    return pd.DataFrame(dmat_emd_df), transport_plans
 
 
 def calc_patient_matrix_old(adata, cost_matrix, group_name, ot_method, ot_params=None):
@@ -80,7 +153,7 @@ def calc_patient_matrix_old(adata, cost_matrix, group_name, ot_method, ot_params
     assert ot_method in ['exact', 'entropy']
     if ot_method == 'entropy':
         assert 'lambda' in ot_params
-  
+
     groups = np.sort(np.unique(adata.obs[group_name].values))
     dmat_emd = np.zeros([len(groups), len(groups)])
 

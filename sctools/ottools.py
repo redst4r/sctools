@@ -1,7 +1,11 @@
+"""
+docstrign
+"""
+
+import ot
 import tqdm
 from sklearn.manifold import MDS
 import seaborn as sns
-import ot
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import squareform, pdist
@@ -14,15 +18,13 @@ def get_filtered_matrix(adata, matrix, g1, g2, group_name):
     only contain cells from g1 in the rows and g2 in the colums.
     Basically creats the costmatrix for OT compring group1 to group2
     """
-    groups = np.sort(np.unique(adata.obs[group_name].values))
     ix1 = np.where(adata.obs[group_name]==g1)[0]
     ix2 = np.where(adata.obs[group_name]==g2)[0]
 
-    filtered_D = matrix[np.ix_(ix1, ix2)] # pick only the relevant datapoints    
+    filtered_D = matrix[np.ix_(ix1, ix2)] # pick only the relevant datapoints
     i1 = adata[ix1].obs.index.values
     i2 = adata[ix2].obs.index.values
     return filtered_D, i1, i2
-
 
 def yield_pairs(adata, cost_matrix, group_name):
     """
@@ -34,7 +36,7 @@ def yield_pairs(adata, cost_matrix, group_name):
     for i, g1 in enumerate(groups):
         for j, g2 in enumerate(groups):
             if i>=j: continue
-            filtered_D,_,_ = get_filtered_matrix(adata, cost_matrix, g1, g2, group_name)
+            filtered_D, _, _ = get_filtered_matrix(adata, cost_matrix, g1, g2, group_name)
             yield g1, g2, filtered_D
 
 
@@ -105,7 +107,7 @@ def calc_patient_matrix_old(adata, cost_matrix, group_name, ot_method, ot_params
     return dmat_emd, groups
 
 
-def flatdf_to_distance(df):
+def flatdf_to_distance(df, distance_field):
     """
     turing a dataframe representign a flat distance matrix into a square distance matrix
     """
@@ -113,26 +115,28 @@ def flatdf_to_distance(df):
         assert len(x) == 1
         return x
 
-    distance_matrix = pd.crosstab(df.group1, df.group2, df.debiased_distance, aggfunc=_aggr)
+    distance_matrix = pd.crosstab(df.group1, df.group2, df[distance_field], aggfunc=_aggr)
     return distance_matrix
 
 
-def display_distance_matrix(df, method='average'):
-    "clustermap would cluster on the distance-matrix, instead taking the distance-matrix as an already precomputed clustering"
-    "hence we explicitly tell it to no cluster by itself"
- 
-    distance_matrix = flatdf_to_distance(df)
+def display_distance_matrix(df, method='average', figsize=(5,5), distance_field='debiased_distance'):
+    """
+    clustermap would cluster on the distance-matrix, instead taking the distance-matrix as an already precomputed clustering
+    hence we explicitly tell it to no cluster by itself
+    """
+    distance_matrix = flatdf_to_distance(df, distance_field)
 
     flat_dmat = squareform(distance_matrix) # weird, squareform is its own inverse
     row_linkage = hc.linkage(flat_dmat, method=method)
     df_ = distance_matrix
-    g = sns.clustermap(df_, row_linkage=row_linkage, col_linkage=row_linkage, annot=True, figsize=(5,5))
-#     plt.figure()
-#     g = sns.heatmap(df_, annot=True)
+    g = sns.clustermap(df_, row_linkage=row_linkage, col_linkage=row_linkage, annot=True, figsize=figsize)
+
 
 def display_distance_matrix_old(distance_matrix, sample_names, method='average'):
-    "clustermap would cluster on the distance-matrix, instead taking the distance-matrix as an already precomputed clustering"
-    "hence we explicitly tell it to no cluster by itself"
+    """
+    clustermap would cluster on the distance-matrix, instead taking the distance-matrix as an already precomputed clustering
+    hence we explicitly tell it to no cluster by itself
+    """
     assert distance_matrix.shape[0] == distance_matrix.shape[1]
     flat_dmat = squareform(distance_matrix) # weird, squareform is its own inverse
     row_linkage = hc.linkage(flat_dmat, method=method)
@@ -141,14 +145,14 @@ def display_distance_matrix_old(distance_matrix, sample_names, method='average')
 #     plt.figure()
 #     g = sns.heatmap(df_, annot=True)
 
-def mds_embedding(df_flat):
-    
-    distance_matrix = flatdf_to_distance(df_flat)
-    
+def mds_embedding(df_flat, distance_field='debiased_distance'):
+
+    distance_matrix = flatdf_to_distance(df_flat, distance_field)
+
     mds = MDS(n_components=2, metric=True, dissimilarity='precomputed', n_init=200)
 
     mds_emb = mds.fit_transform(distance_matrix)
-    
+
     # lets plot it a little nicer
     df = pd.DataFrame(mds_emb, columns=['mds1', 'mds2'])
     df['samplename'] = distance_matrix.index

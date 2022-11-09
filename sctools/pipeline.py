@@ -116,7 +116,7 @@ def standard_processing(adata, detect_doublets=True, MITO_CUTOFF=0.4):
     return adata
 
 
-def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito_cutoff=1,
+def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito_cutoff=1.0,
                           annotate_cellcycle_flag=True,
                           harmony_correction=None,
                           harmony_clusters=None,
@@ -297,7 +297,7 @@ def _do_harmony(adata, harmony_correction: str, harmony_clusters):
     return corrected_X_pca
 
 
-def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, method='wilcoxon', min_in_group_fraction=0, max_out_group_fraction=1, use_raw=True, key_added='rank_genes_groups', csc_transform=True):
+def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, method='wilcoxon', min_in_group_fraction=0.0, max_out_group_fraction=1.0, use_raw=True, key_added='rank_genes_groups', csc_transform=True):
     """
     scanpy by default runs the differential expression on .raw.X, but also assumes
     logarithmized data. Otherwise, pvals come out wrong!

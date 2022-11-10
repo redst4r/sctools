@@ -1,4 +1,3 @@
-from sctools.transforms import split_adata
 import rpy2.robjects as ro
 from rpy2.robjects.conversion import localconverter
 from rpy2.robjects.packages import importr
@@ -11,6 +10,7 @@ import numpy as np
 import pandas as pd
 import plotnine as pn
 from scipy.stats import nbinom
+import plydata
 
 def sctransform(adata, n_genes=2000, return_hvg_only=True):
     """
@@ -91,7 +91,6 @@ def plot_variance(adata, figure_size=(3,3)):
     return p1, p2
 
 
-import plydata
 def plot_model(adata, figure_size=(3,3)):
     """
     plot the fitted model parameters

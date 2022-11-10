@@ -28,12 +28,16 @@ def groupby_columns(adata, groupby_field:str, aggr_fun):
     return adata_aggr
 
 
-def groupby_rows(adata, groupby_field:str, aggr_fun):
+
+def groupby_rows(adata, groupby_field, aggr_fun):
 
     """
     aggregate the observations, i.e. to turn the singlke cell into bulk experiments
     """
-    assert groupby_field in adata.obs
+    if isinstance(groupby_field, str):
+        groupby_field = [groupby_field]
+    assert [_ in adata.obs for _ in groupby_field]
+
     s = adata.obs.groupby(groupby_field)
     x_new = []
     obs_new = []
@@ -47,7 +51,7 @@ def groupby_rows(adata, groupby_field:str, aggr_fun):
         obs_new.append(observation)
 
     # the indexs of obs should be string, be fefault its int however
-    obs_df = pd.DataFrame(obs_new, columns=[groupby_field])
+    obs_df = pd.DataFrame(obs_new, columns=groupby_field)
     obs_df.index = obs_df.index.astype('str')
 
     adata_aggr = sc.AnnData(np.concatenate(x_new),

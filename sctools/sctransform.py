@@ -159,7 +159,14 @@ def plot_model_fit(adata_sc, adata_raw, gene, color=None, plot_quantiles=True):
     """
     plot the n_molecules vs expression relation for the actual data and the model prediction
     """
-    sct_df = adata_sc.uns['sctransform_model']
+
+    # allow the first arg to be a AnnData (with sctransform_model in the .uns slot)
+    # or a df directly
+    if isinstance(adata_sc, sc.AnnData):
+        sct_df = adata_sc.uns['sctransform_model']
+    elif isinstance(adata_sc, pd.DataFrame):
+        sct_df = adata_sc
+        assert all(_ in sct_df.columns for _ in ['(Intercept)', 'log_umi','theta'])
 
     # the dataframe for the raw/unnormed count data
     count_data = adata_raw.obs.copy()

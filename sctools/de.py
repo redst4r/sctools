@@ -2,10 +2,13 @@ import itertools
 import scanpy as sc
 import numpy as np
 from scipy import stats
+from scipy.sparse import spmatrix, csc_matrix
 import pandas as pd
 import tqdm
 import plotnine as pn
-from scipy.sparse import spmatrix
+import statsmodels.api as sm
+from statsmodels.stats.multitest import multipletests
+from patsy import dmatrices
 """
 tools for differential expression in scanpy
 """
@@ -388,18 +391,11 @@ def plot_de(adata, scale=True, mode='boxplot', ngenes=5, qval_cutoff=0.2):
     return plot
 
 
-
-import statsmodels.api as sm
-from patsy import dmatrices
-from scipy.sparse import csc_matrix
-
 def _lm_de_helper(df, formula):
     """
     :param formula: something like: gene ~ diagnosis + patient
     """
     y, X = dmatrices(formula, data=df, return_type='dataframe')
-
-    # y, X = dmatrices('gene ~ C(diagnosis, Treatment(reference="N(true)"))', data=df, return_type='dataframe')
 
     mod = sm.OLS(y, X)
     res = mod.fit()
@@ -411,7 +407,6 @@ def _lm_de_helper(df, formula):
     w.index = w.index.map(lambda x: "coeff_"+x)
     _series = pd.concat([q, w])
     return _series
-
 
 def differential_expression_lm(adata, formula):
     """
@@ -436,4 +431,22 @@ def differential_expression_lm(adata, formula):
 
         results.append(_series)
     results = pd.DataFrame(results)
+
+    # mutiple testing correaction
+    pval_fields = [_ for _ in results.columns if _.startswith('pval_')]
+    for pf in pval_fields:
+        _, q, _, _ = multipletests(results[pf], method='fdr_bh')
+
+        # rename to qval_ ...
+        qname = 'q'+pf[1:]
+        results[qname] = q
+
     return results
+
+
+
+def differential_expression_lm_parallel(adata, formula, cores=4):
+    """
+    chunk the expression matrix in multiple column blocks, do DE on each block in parallel
+    """
+

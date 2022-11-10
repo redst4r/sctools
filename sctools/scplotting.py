@@ -83,6 +83,21 @@ def kneeplot_split(adata, splitfield='samplename'):
         plt.grid(True, which="both")
         ax.legend()
 
+def kneeplot_split_cumulative(adata, splitfield='samplename'):
+    splits = sorted(adata.obs[splitfield].unique())
+    for s in splits:
+        a_tmp = adata[adata.obs[splitfield]==s]
+        cumulative_knee = np.cumsum(np.sort((np.array(a_tmp.X.sum(axis=1))).flatten())[::-1])
+        ax =plt.gca()
+#         ax.loglog(range(len(cumulative_knee)), cumulative_knee, label=s, linewidth=5, )
+        ax.plot(range(len(cumulative_knee)), cumulative_knee, label=s, linewidth=5, marker='x' )
+
+        ax.set_xlabel("Set of Barcodes")
+        ax.set_ylabel("cumulative UMI Counts")
+
+        plt.grid(True, which="both")
+        ax.legend()
+
 
 from sctools.transforms import split_adata
 from scipy.stats import poisson

@@ -10,25 +10,6 @@ import h5py
 from anndata._io.h5ad import read_dataframe
 
 
-class Verbose(object):
-    """
-    context manager for verbose output around statements
-    """
-
-    def __init__(self, msg, verbose):
-        self.msg = msg
-        self.verbose = verbose
-
-    def __enter__(self):
-        if self.verbose:
-            print(self.msg)
-        return
-
-    def __exit__(self, type, value, traceback):
-        if self.verbose:
-            print(f'Done {self.msg}')
-
-
 def get_diffusion_pseudotime(adata, n_dcs, min_group_size):
     dpt = sc.tools._dpt.DPT(adata,
                             n_dcs=n_dcs,
@@ -112,3 +93,12 @@ def load_obs(h5ad_filename):
     with h5py.File(h5ad_filename, 'r') as f:
         obs = read_dataframe(f['/obs'])
     return obs
+
+def load_dataframe(h5ad_filename, path):
+    """
+    loads any dataframe in the h5ad. path specifics the location within the
+    h5ad (e.g. /raw/var, /obs, /var)
+    """
+    with h5py.File(h5ad_filename, 'r') as f:
+        df = read_dataframe(f[path])
+    return df

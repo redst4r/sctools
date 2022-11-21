@@ -178,18 +178,26 @@ def preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, 
 
     logging.info('annotating and filtering for coding genes')
     adata = annotate_coding_genes(adata)
-    adata = adata[:, adata.var.is_coding == True]
+
+    ix_coding = adata.var.is_coding == True
+    # adata = adata[:, ix_coding]
+    adata._inplace_subset_var(ix_coding) # inplace to not create a view
     gc.collect()
+
     logging.info('filtering cells for UMI content')
     cells_before = adata.shape[0]
-    adata = adata[adata.obs.query('n_molecules>@umi_cutoff').index]
+    # adata = adata[adata.obs.query('n_molecules>@umi_cutoff').index]
+    ix_umi = adata.obs.query('n_molecules>@umi_cutoff').index
+    adata._inplace_subset_obs(ix_umi) # inplace to not create a view
     gc.collect()
+
     cells_after = adata.shape[0]
     logging.info(f'Cells: {cells_before} -> {cells_after}')
 
     logging.info('filtering cells for mito content')
     cells_before = adata.shape[0]
-    adata = adata[adata.obs.query('percent_mito<@percent_mito_cutoff').index].copy()  # copying to avoid getting a view, which has some issues when copying later
+    ix_mito = adata.obs.query('percent_mito<@percent_mito_cutoff').index # copying to avoid getting a view, which has some issues when copying later
+    adata._inplace_subset_obs(ix_mito)
     gc.collect()
 
     cells_after = adata.shape[0]

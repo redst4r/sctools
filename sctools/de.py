@@ -450,3 +450,54 @@ def differential_expression_lm_parallel(adata, formula, cores=4):
     chunk the expression matrix in multiple column blocks, do DE on each block in parallel
     """
 
+
+import rpy2.robjects as ro
+from rpy2.robjects.conversion import localconverter
+from rpy2.robjects.packages import importr
+from rpy2.robjects import pandas2ri
+import sys
+# sys.path.append('/home/michi/ms_python_packages/anndata2ri')
+sys.path.append('/home/mstrasse/anndata2ri')
+import anndata2ri
+
+def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, var_of_interest: str):
+    """
+    :param formula: something like "~treatment + batch", needs to start with a ~
+    :param var_of_interest: which variable in the formula is actually of interest (the other are just nuissance, regressed out 
+        Shrinkage is performed for all comparisons including this var_of_interest, and returned
+
+    :return: a dict of dataframes, corresponding to the different comparisons involing var_of_interest
+    """
+    assert formula.startswith('~'), "Formula must start with ~"
+    assert isinstance(var_of_interest, str), "var_of_interest must be a string"
+    importr("DESeq2")
+
+    # move into R
+    with localconverter(ro.default_converter + anndata2ri.converter):
+        ro.globalenv['scanpy.data'] = adata_pseudo
+
+    # creating the DESeq object
+    ro.r('coldata = colData(scanpy.data)')
+    ro.r('counts = assay(scanpy.data)')
+    ro.r('dds = DESeqDataSetFromMatrix(countData = counts, colData = coldata, design= ~ patient + diagnosis)')
+
+    # striagten out the levels
+    # note that RPy2 respects pd.Categorical levels, hence we can do taht in python already!
+    # ro.r('dds$diagnosis <- factor(dds$diagnosis, levels = c("NE", "M", "D", "T", "NS"))')
+
+    # doing DEseq computations
+    print('Main DESeq conputation')
+    ro.r('dds <- DESeq(dds)')
+
+    pandas2ri.activate()
+    result_names = list(ro.r('resultsNames(dds)'))
+    results_of_interest = [_ for _ in result_names if _.startswith(var_of_interest)]
+    result_dict = {}
+    for r in results_of_interest:
+        print(f'shrinkage for {r}')
+        ro.r(f'resLFC <- lfcShrink(dds, coef="{r}", type="apeglm")')
+        df = ro.r('as.data.frame(resLFC)')
+        result_dict[r] = df
+    pandas2ri.deactivate()
+
+    return result_dict

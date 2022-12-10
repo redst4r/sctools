@@ -120,6 +120,7 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
                           annotate_cellcycle_flag=True,
                           harmony_correction=None,
                           harmony_clusters=None,
+                          n_pcs=50,
                           verbose=True,
                           ignore_int_test=False):
     """
@@ -161,6 +162,7 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
 
     adata = postprocessing_michi_kallisto_recipe(adata,
                                                  harmony_correction,
+                                                 n_pcs=n_pcs,
                                                  harmony_clusters=harmony_clusters,
                                                  verbose=verbose)
     if not ignore_int_test:
@@ -206,12 +208,12 @@ def preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, 
     return adata
 
 
-def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clusters=None, verbose=True):
+def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clusters=None, n_pcs=50, verbose=True):
     """
     doing batch correction, PCA/UMAP etc
     """
     logging.info('PCA')
-    sc.pp.pca(adata)
+    sc.pp.pca(adata, n_comps=n_pcs)
 
     gc.collect()
 

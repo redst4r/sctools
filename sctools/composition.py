@@ -165,3 +165,95 @@ def clustered_heatmap_from_sccoda_CLR(sccoda_adata, figsize=(15, 5), barcolormap
     return df_cluster, Z
 
 
+"""
+Conpoistional algebra/geometry
+"""
+def C(x, axis=1):
+    """
+    rescale onto simplex
+    """
+    return x/x.sum(axis, keepdims=True)
+
+def perturbation(x, p):
+    assert np.all(x.shape == p.shape)
+    return C(x*p)
+
+def power(x, alpha):
+    assert np.isscalar(alpha)
+    return C(x**alpha)
+
+def inner_product(x,y, axis=1):
+    gx = gmean(x, axis=axis)
+    gy = gmean(y, axis=axis)
+    
+    return np.sum(np.log(x/gx) * np.log(y/gy), axis=axis)
+
+
+def get_straight_line(x0,p, t_space):
+    """
+    a "straight" line in simplex space
+    """
+    x_traj = []
+    for t in t_space:
+        xnew = perturbation(x0, power(p, t)) 
+        x_traj.append(xnew)
+
+    x_traj = np.vstack(x_traj)    
+    return x_traj
+
+
+def aitchinson_distance_pairwise(x,y):
+    np.testing.assert_allclose(x , C(x))
+    np.testing.assert_allclose(y, C(y))
+
+    a = np.log(x / gmean(x, axis=1))
+    b = np.log(y / gmean(y, axis=1))
+    
+    d = np.sqrt(np.sum((a-b)**2))
+    
+    return d
+
+
+"""
+Isometric logratio transform
+"""
+
+def isometric_basis_vectors_RD(i, D):
+    "basis for compositional data in real space"
+    assert i>0, "index starts at 1"
+    assert i<=D-1, "index max at D-1"
+    pre = np.sqrt(i/(i+1))
+    
+    u = [1/i]*i + [-1] + [0]*(D-i-1)
+    return pre*np.array(u)
+
+def isometric_basis_vectors_SD(i, D):
+    "basis for compositional data in simplex space"
+    assert i>0, "index starts at 1"
+    assert i<=D-1, "index max at D-1"
+    
+    A = np.sqrt(1/(i*(i+1)))
+    e = [A]*i + [-np.sqrt(i/(i+1))] + [0]*(D-i-1)
+    
+    return C(np.exp(e), axis=0)
+
+def irl_transform(x, mode='SD'):
+    assert mode in ["SD", "RD"]
+    N_obs, D = x.shape
+    
+    if False:
+        # moving to R^D projection on the RD basis vectors
+        x_clr = clr_transform(x)
+        irl = []
+        for i in range(1,D):
+            u = isometric_basis_vectors_RD(i, D)
+            irl.append(x_clr @ u)
+        return np.vstack(irl).T
+
+    else:
+        # staying in S, projecting onto the SD basis
+        irl = []
+        for i in range(1,D):
+            u = isometric_basis_vectors_SD(i, D)
+            irl.append(x @ u)
+        return np.vstack(irl).T        

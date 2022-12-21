@@ -6,12 +6,9 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.stats import dirichlet
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-from crukiopy.colormaps import color_dict_diagnosis
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.cluster.hierarchy import linkage, leaves_list
-from sccoda.util import data_visualization as viz
-
 
 
 def log_geometric_mean(x, axis):
@@ -137,6 +134,8 @@ def clustered_heatmap_from_sccoda_CLR(sccoda_adata, figsize=(15, 5), barcolormap
 #     X = sccoda_adata[:, cluster_order].X.copy()
 #     X = X/X.sum(1, keepdims=True)  # divide by total number of cells per sample
 
+    from sccoda.util import data_visualization as viz
+    from crukiopy.colormaps import color_dict_diagnosis
     diag_colors = [color_dict_diagnosis[_] for _ in sccoda_adata.obs.diagnosis]
     procedure_colors = ['red' if _ =="biopsy" else "blue" for _ in sccoda_adata.obs.procedure]
 
@@ -183,11 +182,22 @@ def power(x, alpha):
     return C(x**alpha)
 
 def inner_product(x,y, axis=1):
-    gx = gmean(x, axis=axis)
-    gy = gmean(y, axis=axis)
-    
-    return np.sum(np.log(x/gx) * np.log(y/gy), axis=axis)
+    if False:
+        gx = gmean(x, axis=axis).reshape(-1,1)
+        gy = gmean(y, axis=axis).reshape(-1,1)
+        I = np.sum(np.log(x/gx) * np.log(y/gy), axis=axis)
+        return I
 
+    else:
+        log_gx = log_geometric_mean(x, axis=axis)
+        log_gy = log_geometric_mean(y, axis=axis)
+
+    #     np.testing.assert_allclose(log_gx,  np.log(gx))
+        _t = (np.log(x) - log_gx) * (np.log(y)-log_gy)
+
+    #     np.testing.assert_allclose(I, np.sum(_t, axis=axis))
+
+        return np.sum(_t, axis=axis)
 
 def get_straight_line(x0,p, t_space):
     """
@@ -206,8 +216,11 @@ def aitchinson_distance_pairwise(x,y):
     np.testing.assert_allclose(x , C(x))
     np.testing.assert_allclose(y, C(y))
 
-    a = np.log(x / gmean(x, axis=1))
-    b = np.log(y / gmean(y, axis=1))
+#     a = np.log(x / gmean(x, axis=1))
+#     b = np.log(y / gmean(y, axis=1))
+    
+    a = np.log(x) - log_geometric_mean(x, axis=1)
+    b = np.log(y) - log_geometric_mean(y, axis=1)
     
     d = np.sqrt(np.sum((a-b)**2))
     
@@ -240,20 +253,25 @@ def isometric_basis_vectors_SD(i, D):
 def irl_transform(x, mode='SD'):
     assert mode in ["SD", "RD"]
     N_obs, D = x.shape
-    
-    if False:
+
+    if mode=="RD":
         # moving to R^D projection on the RD basis vectors
-        x_clr = clr_transform(x)
+        x_clr = clr_transform(x, axis=1)
         irl = []
         for i in range(1,D):
             u = isometric_basis_vectors_RD(i, D)
             irl.append(x_clr @ u)
         return np.vstack(irl).T
 
-    else:
+    elif mode=="SD":
         # staying in S, projecting onto the SD basis
+        # be sure to use the aitchinson inner product for projection!
         irl = []
         for i in range(1,D):
-            u = isometric_basis_vectors_SD(i, D)
-            irl.append(x @ u)
-        return np.vstack(irl).T        
+            u = isometric_basis_vectors_SD(i, D).reshape(1,-1)
+            _t = inner_product(x,u).T
+            
+            irl.append(_t)
+        return np.vstack(irl).T
+    else:
+        raise ValueError(f'unknown mode {mode}')

@@ -9,7 +9,7 @@ from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.cluster.hierarchy import linkage, leaves_list
-
+import tqdm
 
 def log_geometric_mean(x, axis):
     """
@@ -40,7 +40,7 @@ def aichinson_distance(x, axis=1):
 # x_norm = x/x.sum(1, keepdims=1)
 # np.testing.assert_allclose(clr_transform(x, axis=1),  clr_transform(x_norm, axis=1))
 #
-def clr_transform_bayesian(x, axis):
+def clr_transform_bayesian(x, axis, n_samples):
     """
     Center log ratio transform, taking into account the multinomial uncertainty in the counts
     It'll return samples from the CLR posterior in the 3rd dimension
@@ -49,8 +49,8 @@ def clr_transform_bayesian(x, axis):
     # WRONG:     x_norm = x/x.sum(1, keepdims=1)
 
     x_bayes = []
-    for i in range(len(x)):
-        x_bayes.append(dirichlet(0.5 + x[i]).rvs(1000).T)
+    for i in tqdm.trange(len(x)):
+        x_bayes.append(dirichlet(0.5 + x[i]).rvs(n_samples).T)
 #         x_bayes.append(x[i])
 
     ## samples x features x mcmc_samples
@@ -208,7 +208,7 @@ def get_straight_line(x0,p, t_space):
         xnew = perturbation(x0, power(p, t)) 
         x_traj.append(xnew)
 
-    x_traj = np.vstack(x_traj)    
+    x_traj = np.vstack(x_traj)
     return x_traj
 
 
@@ -236,7 +236,7 @@ def isometric_basis_vectors_RD(i, D):
     assert i>0, "index starts at 1"
     assert i<=D-1, "index max at D-1"
     pre = np.sqrt(i/(i+1))
-    
+
     u = [1/i]*i + [-1] + [0]*(D-i-1)
     return pre*np.array(u)
 
@@ -244,10 +244,10 @@ def isometric_basis_vectors_SD(i, D):
     "basis for compositional data in simplex space"
     assert i>0, "index starts at 1"
     assert i<=D-1, "index max at D-1"
-    
+
     A = np.sqrt(1/(i*(i+1)))
     e = [A]*i + [-np.sqrt(i/(i+1))] + [0]*(D-i-1)
-    
+
     return C(np.exp(e), axis=0)
 
 def irl_transform(x, mode='SD'):

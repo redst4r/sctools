@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import scanpy as sc
 import tqdm
-
+import gc
 
 def groupby_columns(adata, groupby_field:str, aggr_fun):
     """
@@ -119,7 +119,7 @@ def adata_merge(adatas, security_check=True, verbose=True, memory_save=False):
         while len(adatas) > 0:
             _a = adatas.pop()
             q = q.concatenate(_a)
-            import gc
+            del _a
             gc.collect()
             counter+=1
             print(f'Merging: {counter}/{len(adatas)}')

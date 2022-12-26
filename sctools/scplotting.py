@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 import numpy as np
 import tqdm
+import plotnine as pn
 
 godsnot_64 = [
     # "#000000",  # remove the black, as often, we have black colored annotation
@@ -137,7 +138,6 @@ def mean_var_relation_split(adata, split):
     mean_var_df = pd.concat(mean_var_df)
     return mean_var_df
 
-import plotnine as pn
 def plot_mean_var(adata, split=None):
     if split is None:
         df = mean_var_relation(adata)
@@ -150,3 +150,28 @@ def plot_mean_var(adata, split=None):
         p1 = p1 + pn.facet_wrap('samplename')
         p2 = p2 + pn.facet_wrap('samplename')
     return p1, p2
+
+
+def extract_cmap_from_adata(adata, field: str):
+    """
+    turn the colors stored in adata.uns into a dict: category->color
+    :param adata:
+    :param field: which field in .obs to get the color coding for
+    """
+    assert adata.obs[field].dtype == "category"
+    cm = {}
+    for i,cat_name in enumerate(adata.obs[field].cat.categories):
+        cm[cat_name] = adata.uns[f'{field}_colors'][i]
+    return cm
+
+def extract_colorvector_from_adata(adata, field: str):
+    """
+    for a categorical cell attribute in .obs, extract a vector that encodes
+    each cell by the respecitve attribute of the cell (colors stored in adata.uns
+    :param adata:
+    :param field: which field to get the color vector for
+    """
+    cmap = extract_cmap_from_adata(adata, field)
+
+    cvector = [cmap[_] for _ in adata.obs[field]]
+    return cvector

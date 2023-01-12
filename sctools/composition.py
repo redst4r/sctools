@@ -59,13 +59,13 @@ def clr_transform_bayesian(x, axis, n_samples):
     x_clr = clr_transform(x_bayes,axis=axis)
     return x_clr
 
-def aichinson_distance_bayesian(x, axis=1):
+def aichinson_distance_bayesian(x, axis=1, n_samples=1000):
     """
     Aitchinson distance with Bayesian uncertainty from the counting
     3rd dimension will be samples from the posterior of distance d[i,j]
     """
     # estimate the clr transform (samples from the posterior)
-    x_clr_bayes = clr_transform_bayesian(x, axis)
+    x_clr_bayes = clr_transform_bayesian(x, axis, n_samples)
 
     # obs x features x mc_samples
     # we need to calc an obs x obs distance matrix
@@ -83,11 +83,11 @@ def aichinson_distance_bayesian(x, axis=1):
     return d
 
 
-def compositional_pca(adata_coda):
+def compositional_pca(adata_coda, n_samples=1000):
     """
     PCA on the compositional adata, based on the posterior mean of the data in CLR space
     """
-    x_bayes_clr = clr_transform_bayesian(adata_coda.X, axis=1)
+    x_bayes_clr = clr_transform_bayesian(adata_coda.X, axis=1, n_samples=n_samples)
 #     D_bayes = aichinson_distance_bayesian(adata_coda.X)
     clr_posterior = x_bayes_clr.mean(axis=2)
 
@@ -205,7 +205,7 @@ def get_straight_line(x0,p, t_space):
     """
     x_traj = []
     for t in t_space:
-        xnew = perturbation(x0, power(p, t)) 
+        xnew = perturbation(x0, power(p, t))
         x_traj.append(xnew)
 
     x_traj = np.vstack(x_traj)
@@ -218,12 +218,12 @@ def aitchinson_distance_pairwise(x,y):
 
 #     a = np.log(x / gmean(x, axis=1))
 #     b = np.log(y / gmean(y, axis=1))
-    
+
     a = np.log(x) - log_geometric_mean(x, axis=1)
     b = np.log(y) - log_geometric_mean(y, axis=1)
-    
+
     d = np.sqrt(np.sum((a-b)**2))
-    
+
     return d
 
 
@@ -270,7 +270,7 @@ def irl_transform(x, mode='SD'):
         for i in range(1,D):
             u = isometric_basis_vectors_SD(i, D).reshape(1,-1)
             _t = inner_product(x,u).T
-            
+
             irl.append(_t)
         return np.vstack(irl).T
     else:

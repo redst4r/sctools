@@ -130,15 +130,25 @@ def plot_pca_loadings(principal_components_df, components=(0,1)):
 
 
 # actual hiereachical clustering on the posterior-mean distances
-def clustered_heatmap_from_sccoda_CLR(sccoda_adata, figsize=(15, 5), barcolormap=None):
+def clustered_heatmap_from_sccoda_CLR(sccoda_adata, figsize=(15, 5), barcolormap=None, cat_colormaps=None):
 #     X = sccoda_adata[:, cluster_order].X.copy()
 #     X = X/X.sum(1, keepdims=True)  # divide by total number of cells per sample
 
     from sccoda.util import data_visualization as viz
-    from crukiopy.colormaps import color_dict_diagnosis
-    diag_colors = [color_dict_diagnosis[_] for _ in sccoda_adata.obs.diagnosis]
-    procedure_colors = ['red' if _ =="biopsy" else "blue" for _ in sccoda_adata.obs.procedure]
 
+    if cat_colormaps is None:
+        from crukiopy.colormaps import color_dict_diagnosis
+        cat_colormaps = {'diagnosis': color_dict_diagnosis, 'procedure': {'biopsy': 'red', 'resection': 'blue'}}
+
+    cvectors = []
+    for cat, cmap in cat_colormaps.items():
+        vec = [cmap[_] for _ in sccoda_adata.obs[cat]]
+        cvectors.append(vec)
+
+
+    # diag_colors = [color_dict_diagnosis[_] for _ in sccoda_adata.obs.diagnosis]
+    # procedure_colors = ['red' if _ =="biopsy" else "blue" for _ in sccoda_adata.obs.procedure]
+    # cvectors = [diag_colors, procedure_colors]
     X = sccoda_adata.X.copy()
     D_bayes = aichinson_distance_bayesian(sccoda_adata.X)
     D_posterior_mean = D_bayes.mean(axis=2)
@@ -147,12 +157,12 @@ def clustered_heatmap_from_sccoda_CLR(sccoda_adata, figsize=(15, 5), barcolormap
 
     Z = linkage(squareform(D_posterior_mean), method='ward', optimal_ordering=True)
     sns.clustermap(df_cluster.T, row_cluster=False, col_linkage=Z,
-                   col_colors=[diag_colors, procedure_colors],
+                   col_colors=cvectors,
                    xticklabels=True, yticklabels=True, figsize=figsize,
                    method='ward', #dendrogram_ratio=0.2,
 #                    cmap=sns.dark_palette("#69d", reverse=False, as_cmap=True),
                    cmap=sns.color_palette("Blues"),
-)
+    )
 
     ix = leaves_list(Z)
     order = [sccoda_adata.obs.index[i] for i in ix]

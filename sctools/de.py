@@ -471,6 +471,15 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, var_of_interest: str):
     assert formula.startswith('~'), "Formula must start with ~"
     assert isinstance(var_of_interest, str), "var_of_interest must be a string"
     importr("DESeq2")
+    importr("PCAtools")
+    """
+    if missing do
+    ------------------------------------------
+    if (!require("BiocManager", quietly = TRUE))
+        install.packages("BiocManager")
+    BiocManager::install("PCAtools")
+    ------------------------------------------
+    """
 
     # move into R
     with localconverter(ro.default_converter + anndata2ri.converter):
@@ -479,7 +488,7 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, var_of_interest: str):
     # creating the DESeq object
     ro.r('coldata = colData(scanpy.data)')
     ro.r('counts = assay(scanpy.data)')
-    ro.r('dds = DESeqDataSetFromMatrix(countData = counts, colData = coldata, design= ~ patient + diagnosis)')
+    ro.r(f'dds = DESeqDataSetFromMatrix(countData = counts, colData = coldata, design= {formula})')
 
     # striagten out the levels
     # note that RPy2 respects pd.Categorical levels, hence we can do taht in python already!
@@ -488,6 +497,10 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, var_of_interest: str):
     # doing DEseq computations
     print('Main DESeq conputation')
     ro.r('dds <- DESeq(dds)')
+
+    # some visualization
+    ro.r('vsd <- vst(dds, blind=FALSE)')
+    ro.r('p <- PCAtools::pca(assay(vsd), metadata = colData(dds), removeVar = 0.1, scale=F)')
 
     pandas2ri.activate()
     result_names = list(ro.r('resultsNames(dds)'))
@@ -498,6 +511,12 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, var_of_interest: str):
         ro.r(f'resLFC <- lfcShrink(dds, coef="{r}", type="apeglm")')
         df = ro.r('as.data.frame(resLFC)')
         result_dict[r] = df
+
+    # get the PCA
+    df_pca = ro.r('p')
+    dict_pca = dict(df_pca.items())
+    df_vsd = ro.r('assay(vsd)')
+
     pandas2ri.deactivate()
 
-    return result_dict
+    return result_dict, dict_pca, df_vsd

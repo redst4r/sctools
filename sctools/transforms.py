@@ -114,6 +114,7 @@ def adata_merge(adatas, security_check=True, verbose=True, memory_save=False):
 
     if memory_save:
         print('saving memory')
+        overall_number_of_adatas = len(adatas)
         q = adatas.pop()
         counter = 0
         while len(adatas) > 0:
@@ -122,7 +123,7 @@ def adata_merge(adatas, security_check=True, verbose=True, memory_save=False):
             del _a
             gc.collect()
             counter+=1
-            print(f'Merging: {counter}/{len(adatas)}')
+            print(f'Merging: {counter}/{overall_number_of_adatas}')
         print('Adatas', adatas)
 
     else:

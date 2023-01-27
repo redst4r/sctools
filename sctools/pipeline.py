@@ -71,12 +71,11 @@ def annotate_topN_barcodes(adata, k, split=None):
     return adata
 
 
-def standard_processing(adata, detect_doublets=True, MITO_CUTOFF=0.4):
+def standard_processing(adata, detect_doublets=True, MITO_CUTOFF=0.4, UMI_CUTOFF=1000):
     """
     Wrapper around `michi_kallisto_recipe()` with standardized values for
     QC cutoffs, does Harmony correction and doublet detection!
     """
-    UMI_CUTOFF = 1000
     VARIABLE_GENES = 4000
 
     DE_min = 0.25  # minimum fraction of cells that must express the gene in the cluster

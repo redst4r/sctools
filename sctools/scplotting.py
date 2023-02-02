@@ -68,6 +68,23 @@ def kneeplot(adata, expected_num_cells):
 
     return knee[expected_num_cells]
 
+def kneeplot_split_plotnine(adata, splitfield='samplename'):
+
+    if isinstance(splitfield, str):
+        splitfield = [splitfield]
+
+    df_result = []
+    for group, obs_group in adata.obs.groupby(splitfield):
+        O = obs_group.sort_values('n_molecules', ascending=False)[['n_molecules']]
+        O['x'] = np.arange(O.shape[0])
+        O['norm_n_molecules'] = O['n_molecules'] / O['n_molecules'].sum()
+
+        for s in splitfield:
+            O[s] = obs_group[s].values
+        df_result.append(O)
+
+    return pd.concat(df_result)
+
 
 def kneeplot_split(adata, splitfield='samplename'):
     splits = sorted(adata.obs[splitfield].unique())

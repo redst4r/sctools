@@ -41,24 +41,27 @@ def groupby_rows(adata, groupby_field, aggr_fun):
     s = adata.obs.groupby(groupby_field)
     x_new = []
     obs_new = []
+    n_cells = []
     for observation, indices in tqdm.tqdm(s.indices.items()):
         xx = adata.X[indices, :]
+        _n_cells_aggregated = xx.shape[0]
         # the_values = np.sum(xx, axis=0)
         the_values = aggr_fun(xx)
         assert the_values.shape == (1, adata.shape[1]) # one entry for each obserbation
 
         x_new.append(the_values)
         obs_new.append(observation)
+        n_cells.append(_n_cells_aggregated)
 
     # the indexs of obs should be string, be fefault its int however
     obs_df = pd.DataFrame(obs_new, columns=groupby_field)
     obs_df.index = obs_df.index.astype('str')
 
+    obs_df['n_cells_aggregated'] = n_cells
     adata_aggr = sc.AnnData(np.concatenate(x_new),
                             obs=obs_df,
                             var=adata.var.copy())
     return adata_aggr
-
 
 def adata_merge(adatas, security_check=True, verbose=True, memory_save=False):
     "merging the datasets, assuming the .var are identical"

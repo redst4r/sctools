@@ -18,7 +18,7 @@ import itertools
 def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, var_of_interest: str):
     """
     :param formula: something like "~treatment + batch", needs to start with a ~
-    :param var_of_interest: which variable in the formula is actually of interest (the other are just nuissance, regressed out 
+    :param var_of_interest: which variable in the formula is actually of interest (the other are just nuissance, regressed out
         Shrinkage is performed for all comparisons including this var_of_interest, and returned
 
     :return: a dict of dataframes, corresponding to the different comparisons involing var_of_interest
@@ -28,7 +28,7 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, var_of_interest: str):
     importr("DESeq2")
     importr("PCAtools")
     """
-    if missing do 
+    if missing do
     ------------------------------------------
     if (!require("BiocManager", quietly = TRUE))
         install.packages("BiocManager")
@@ -67,7 +67,7 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, var_of_interest: str):
         df = ro.r('as.data.frame(resLFC)')
         result_dict[r] = df
 
-    # get the PCA 
+    # get the PCA
     df_pca = ro.r('p')
     dict_pca = dict(df_pca.items())
     df_vsd = ro.r('assay(vsd)')
@@ -76,7 +76,65 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, var_of_interest: str):
 
     pandas2ri.deactivate()
 
+    dict_pca['df_pca'] = dict_pca['rotated'].merge(dict_pca['metadata'], left_index=True, right_index=True)
     return result_dict, dict_pca, df_vsd
+
+def DESeq2_pseudobulk_wrapper_LRT(adata_pseudo, formula_full: str, formula_reduced: str):
+    """
+    Differential expression as determined by a LRT: wchich genes are significantly better explained by the full model than by the baseline
+    :param formula_full: something like "~treatment + batch", needs to start with a ~
+    :param formula_reduced: formula of the baseline model in the LRT
+    :return: a dict of dataframes, corresponding to the different comparisons involing var_of_interest
+    """
+    assert formula_full.startswith('~'), "Formula must start with ~"
+    assert formula_reduced.startswith('~'), "Formula must start with ~"
+    importr("DESeq2")
+    importr("PCAtools")
+    """
+    if missing do
+    ------------------------------------------
+    if (!require("BiocManager", quietly = TRUE))
+        install.packages("BiocManager")
+    BiocManager::install("PCAtools")
+    ------------------------------------------
+    """
+
+    # move into R
+    with localconverter(ro.default_converter + anndata2ri.converter):
+        ro.globalenv['scanpy.data'] = adata_pseudo
+
+    # creating the DESeq object
+    ro.r('coldata = colData(scanpy.data)')
+    ro.r('counts = assay(scanpy.data)')
+    ro.r(f'dds = DESeqDataSetFromMatrix(countData = counts, colData = coldata, design= {formula_full})')
+
+    # striagten out the levels
+    # note that RPy2 respects pd.Categorical levels, hence we can do taht in python already!
+    # ro.r('dds$diagnosis <- factor(dds$diagnosis, levels = c("NE", "M", "D", "T", "NS"))')
+
+    # doing DEseq computations
+    print('Main DESeq conputation')
+#     ro.r('dds <- DESeq(dds)')
+    ro.r(f'dds <- DESeq(dds, test="LRT", reduced = {formula_reduced})')
+
+    # some visualization
+    ro.r('vsd <- vst(dds, blind=FALSE)')
+    ro.r('p <- PCAtools::pca(assay(vsd), metadata = colData(dds), removeVar = 0.1, scale=F)')
+
+    pandas2ri.activate()
+    df_DE = ro.r('as.data.frame(results(dds))')
+
+    # get the PCA
+    df_pca = ro.r('p')
+    dict_pca = dict(df_pca.items())
+    df_vsd = ro.r('assay(vsd)')
+
+    dict_pca['metadata'] = ro.r('as.data.frame')(dict_pca['metadata'])
+
+    pandas2ri.deactivate()
+
+    dict_pca['df_pca'] = dict_pca['rotated'].merge(dict_pca['metadata'], left_index=True, right_index=True)
+    return df_DE, dict_pca, df_vsd
 
 
 """

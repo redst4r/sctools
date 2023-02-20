@@ -130,9 +130,7 @@ def plot_pca_loadings(principal_components_df, components=(0,1)):
 
 
 # actual hiereachical clustering on the posterior-mean distances
-def clustered_heatmap_from_sccoda_CLR(sccoda_adata, figsize=(15, 5), barcolormap=None, cat_colormaps=None):
-#     X = sccoda_adata[:, cluster_order].X.copy()
-#     X = X/X.sum(1, keepdims=True)  # divide by total number of cells per sample
+def clustered_heatmap_from_sccoda_CLR(sccoda_adata, figsize=(15, 5), barcolormap=None, cat_colormaps=None, n_samples=1000):
 
     from sccoda.util import data_visualization as viz
 
@@ -150,7 +148,7 @@ def clustered_heatmap_from_sccoda_CLR(sccoda_adata, figsize=(15, 5), barcolormap
     # procedure_colors = ['red' if _ =="biopsy" else "blue" for _ in sccoda_adata.obs.procedure]
     # cvectors = [diag_colors, procedure_colors]
     X = sccoda_adata.X.copy()
-    D_bayes = aichinson_distance_bayesian(sccoda_adata.X)
+    D_bayes = aichinson_distance_bayesian(sccoda_adata.X, axis=1, n_samples=n_samples)
     D_posterior_mean = D_bayes.mean(axis=2)
 
     df_cluster = pd.DataFrame(X/X.sum(axis=1, keepdims=True), columns=sccoda_adata.var.index, index=sccoda_adata.obs.index)
@@ -166,7 +164,7 @@ def clustered_heatmap_from_sccoda_CLR(sccoda_adata, figsize=(15, 5), barcolormap
 
     ix = leaves_list(Z)
     order = [sccoda_adata.obs.index[i] for i in ix]
-    fig = viz.stacked_barplot(sccoda_adata, feature_name="samples", figsize=(10,5),
+    fig = viz.stacked_barplot(sccoda_adata, feature_name="samples", figsize=figsize,
                               level_order=order, #cmap = godsnot_cmap
                               cmap=barcolormap
                               )

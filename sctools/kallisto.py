@@ -1,7 +1,7 @@
 from rnaseqtools import biomart_mapping
 import scanpy as sc
 import pandas as pd
-
+import json
 
 def annotate_gene_symbols(Q):
 
@@ -83,3 +83,10 @@ def _load_kallisto_to_adata(matrixfile, genefile, bcfile, metricsfile=None):
         metric_dict = pd.read_json(metricsfile, orient='columns', typ='series').to_dict()
         _tmp.uns['kallisto_metrics'] = metric_dict
     return _tmp
+
+
+def parse_kallisto_log(filename):
+    with open(filename,'r') as fh:
+        l = ''.join(fh.readlines())
+    j = json.loads(l)
+    return j

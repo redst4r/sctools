@@ -7,6 +7,7 @@ import toolz
 import pandas as pd
 from scipy.special import logsumexp
 import scipy.special as sps
+import itertools
 RUSTPHANTOM_FOLDER = '/home/mstrasse/TB4/rust_code/rustphantompurger'
 RUST_ENV = 'RUSTUP_HOME=/home/mstrasse/TB4/rust_installation/.rustup CARGO_HOME=/home/mstrasse/TB4/rust_installation/.cargo '
 
@@ -19,25 +20,53 @@ class PhantomRustWrapper():
         self.ENV=rust_env
 
     def rust_phantom_wrapper(self, outfile, folders:dict, t2g):
-        cmd = f"cd {self.rustfolder}; {self.ENV} cargo run --release -- -o {outfile} phantom-fingerprint --t2g {t2g}"
-
         folderstring = named_files_to_argstring(folders)
-        cmd = f'{cmd} --infolders "{folderstring}"'
+        cmd = f'''cd {self.rustfolder}; {self.ENV} cargo run --release -- \\
+-o {outfile} phantom-fingerprint --t2g {t2g} \\
+--infolders "{folderstring}"'''
         return cmd
 
     def rust_phantom_detect_cell_overlap_wrapper(self, outfile, folders):
-        cmd = f"cd {self.rustfolder}; {self.ENV} cargo run --release -- -o {outfile} phantom-cb"
         folderstring = named_files_to_argstring(folders)
-        cmd = f'{cmd} --infolders "{folderstring}"'
+        cmd = f'''cd {self.rustfolder}; {self.ENV} cargo run --release -- \\
+-o {outfile} phantom-cb \\
+--infolders "{folderstring}"'''
         return cmd
 
     def rust_phantom_filter_wrapper(self,infolders:dict, outfiles:dict, outfiles_removed:dict, csv:str, t2g:str):
 
-        cmd =  f"""cd {self.rustfolder}; {self.ENV} cargo run --release -- --output /dev/null phantom-filter --t2g {t2g} \
-        --infolders "{named_files_to_argstring(infolders)}" --outfiles "{named_files_to_argstring(outfiles)}" --removed "{named_files_to_argstring(outfiles_removed)}" --csv {csv} --threshold 0.99
+        cmd =  f"""cd {self.rustfolder}; {self.ENV} cargo run --release -- \\
+--output /dev/null phantom-filter --t2g {t2g} \\
+--infolders "{named_files_to_argstring(infolders)}" \\
+--outfiles "{named_files_to_argstring(outfiles)}" \\
+--removed "{named_files_to_argstring(outfiles_removed)}" \\
+--csv {csv} --threshold 0.99
         """
         return cmd
 
+def parse_cb_overlap(df_cb):
+    """
+    turns the output of rust phantom-cb into a dataframe nice for pairwise plotting
+    i.e. it contains all pairs of samples, and the respective amount of umis of the same cell in both samples
+    """
+    samplenames = df_cb.drop('CB', axis=1).columns.values
+
+    df_paired = []
+
+    for s1, s2 in itertools.combinations(samplenames, 2):
+        df_tmp = pd.DataFrame({'numi1': df_cb[s1].values, 'numi2':df_cb[s2].values}).query('numi1>0 and numi2>0')
+    #     df_tmp['CB'] = cb_overlap['CB']
+        df_tmp['sample1'] = s1
+        df_tmp['sample2'] = s2
+        df_paired.append(df_tmp)
+    #     break
+    df_paired = pd.concat(df_paired)
+    df_paired = df_paired.query('numi1>0 and numi2>0')
+
+    df_paired['sample1'] = pd.Categorical(df_paired['sample1'], samplenames)
+    df_paired['sample2'] = pd.Categorical(df_paired['sample2'], samplenames)
+
+    return df_paired
 
 class Phantom():
     def __init__(self, df_phantom):
@@ -91,7 +120,7 @@ class Phantom():
             plt.ylim([0.5, 1])
             plt.plot(df_chimer.r, (1-phat)**df_chimer.r)
 
-        return phat
+        return phat, df_binom_fit_exact
 
     def get_vr_hat(self, samplename):
         # the fraction of READ count in samplename as a function of r
@@ -238,7 +267,6 @@ def logfactorial(n):
 def logbinomial(N, k):
     assert N>=k
     return logfactorial(N) - logfactorial(k) - logfactorial(N-k)
-
 
 def log_multinomial(k_vector):
     N = np.sum(k_vector)

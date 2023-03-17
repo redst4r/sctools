@@ -154,7 +154,7 @@ def clustered_heatmap_from_sccoda_CLR(sccoda_adata, figsize=(15, 5), barcolormap
     df_cluster = pd.DataFrame(X/X.sum(axis=1, keepdims=True), columns=sccoda_adata.var.index, index=sccoda_adata.obs.index)
 
     Z = linkage(squareform(D_posterior_mean), method='ward', optimal_ordering=True)
-    sns.clustermap(df_cluster.T, row_cluster=False, col_linkage=Z,
+    fig1 = sns.clustermap(df_cluster.T, row_cluster=False, col_linkage=Z,
                    col_colors=cvectors,
                    xticklabels=True, yticklabels=True, figsize=figsize,
                    method='ward', #dendrogram_ratio=0.2,
@@ -164,12 +164,12 @@ def clustered_heatmap_from_sccoda_CLR(sccoda_adata, figsize=(15, 5), barcolormap
 
     ix = leaves_list(Z)
     order = [sccoda_adata.obs.index[i] for i in ix]
-    fig = viz.stacked_barplot(sccoda_adata, feature_name="samples", figsize=figsize,
+    fig2 = viz.stacked_barplot(sccoda_adata, feature_name="samples", figsize=figsize,
                               level_order=order, #cmap = godsnot_cmap
                               cmap=barcolormap
                               )
     plt.xticks(rotation=90);
-    return df_cluster, Z
+    return df_cluster, Z, fig1, fig2
 
 
 """

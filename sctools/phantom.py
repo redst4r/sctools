@@ -33,13 +33,14 @@ class PhantomRustWrapper():
 --infolders "{folderstring}"'''
         return cmd
 
-    def rust_phantom_filter_wrapper(self,infolders:dict, outfiles:dict, outfiles_removed:dict, csv:str, t2g:str):
+    def rust_phantom_filter_wrapper(self,infolders:dict, outfiles:dict, outfiles_removed:dict, outfiles_ambiguous:dict, csv:str, t2g:str):
 
         cmd =  f"""cd {self.rustfolder}; {self.ENV} cargo run --release -- \\
 --output /dev/null phantom-filter --t2g {t2g} \\
 --infolders "{named_files_to_argstring(infolders)}" \\
 --outfiles "{named_files_to_argstring(outfiles)}" \\
 --removed "{named_files_to_argstring(outfiles_removed)}" \\
+--ambiguous "{named_files_to_argstring(outfiles_ambiguous)}" \\
 --csv {csv} --threshold 0.99
         """
         return cmd

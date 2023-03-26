@@ -182,11 +182,11 @@ class Phantom():
     def posterior_via_multinomial(self, fingerprint, p_nohop ):
         """
         calcualtes the posterior explicitly using the multinomial (see page 22)
-        
+
         it does yield exactly the same as posterior_sample_of_origin()
         it's mostly educational
         """
-        
+
         assert p_nohop> 0.5, "p_nohop < 0.5, make sure you didnt input the SIHR instead"
         r = np.sum(list(fingerprint.values()))
         pir = self.get_pi_r_hat(p_nohop)[r].to_dict() # dict with samplenames
@@ -201,12 +201,12 @@ class Phantom():
         # norm constant
         C = logsumexp(np.array(list(post_unnorm.values())))
         logpost = toolz.valmap(lambda x: x-C, post_unnorm)
-        
+
         posterior = toolz.valmap(lambda x: np.exp(x), logpost)
         posterior = pd.Series(posterior, index=self.samplenames)
-        
+
         return posterior
-        
+
     def get_multinomial_vector(self, p_nohop, sample_of_origin):
         """
         for the mutlinomial vector of the index hopping matrix
@@ -219,17 +219,17 @@ class Phantom():
                 vec[sam] = p_nohop
             else:
                 vec[sam] = (1-p_nohop)/(S-1)
-        return vec    
-    
+        return vec
+
     def posterior_sample_of_origin(self, fingerprint, p_nohop):
         assert p_nohop> 0.5, "p_nohop < 0.5, make sure you didnt input the SIHR instead"
 
         r = np.sum(list(fingerprint.values()))
         # nom = []
         lognom = []
-        
+
         pi = self.get_pi_r_hat(p_nohop)
-        
+
         for s in self.samplenames:
             pi_rs = pi.loc[s, r]
             # x = pi_rs * (self.S-1)/(1/p -1)**fingerprint[s]
@@ -243,6 +243,17 @@ class Phantom():
         lognom = pd.Series(lognom, index=self.samplenames)
 
         return np.exp(lognom)
+
+    def plot_amplification_profile(self):
+        if self.vrs is None:
+            self.get_all_vr()
+        for s in self.samplenames:
+            vr = self.vrs.loc[s]
+
+            plt.plot(vr, label=s)
+        plt.legend()
+        plt.xlabel('r')
+        plt.xlim([0, 100])
 
 def binomial_model_fit(r, mr, zr):
     prange = np.logspace(-6,0,1000)

@@ -292,7 +292,7 @@ def _do_harmony(adata, harmony_correction: str, harmony_clusters):
         data_mat = np.array(adata.obsm['X_pca'])
         # and harmonize
         ho = ha.run_harmony(data_mat, adata.obs, vars_use,
-                            max_iter_harmony=25,
+                            max_iter_harmony=50,
                             nclust=harmony_clusters)
         corrected_X_pca = np.transpose(ho.Z_corr)
     else:

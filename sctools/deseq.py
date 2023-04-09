@@ -71,13 +71,13 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, var_of_interest: str):
     df_pca = ro.r('p')
     dict_pca = dict(df_pca.items())
     df_vsd = ro.r('assay(vsd)')
-
+    adata_vsd = sc.AnnData(df_vsd.T, obs=adata_pseudo.obs, var=adata_pseudo.var)
     dict_pca['metadata'] = ro.r('as.data.frame')(dict_pca['metadata'])
 
     pandas2ri.deactivate()
 
     dict_pca['df_pca'] = dict_pca['rotated'].merge(dict_pca['metadata'], left_index=True, right_index=True)
-    return result_dict, dict_pca, df_vsd
+    return result_dict, dict_pca, adata_vsd
 
 def DESeq2_pseudobulk_wrapper_LRT(adata_pseudo, formula_full: str, formula_reduced: str):
     """
@@ -128,13 +128,13 @@ def DESeq2_pseudobulk_wrapper_LRT(adata_pseudo, formula_full: str, formula_reduc
     df_pca = ro.r('p')
     dict_pca = dict(df_pca.items())
     df_vsd = ro.r('assay(vsd)')
-
+    adata_vsd = sc.AnnData(df_vsd.T, obs=adata_pseudo.obs, var=adata_pseudo.var)
     dict_pca['metadata'] = ro.r('as.data.frame')(dict_pca['metadata'])
 
     pandas2ri.deactivate()
 
     dict_pca['df_pca'] = dict_pca['rotated'].merge(dict_pca['metadata'], left_index=True, right_index=True)
-    return df_DE, dict_pca, df_vsd
+    return df_DE, dict_pca, adata_vsd
 
 
 """
@@ -202,7 +202,6 @@ def covariate_pc_correlation(df_pca, df_meta):
     results['PC'] = pd.Categorical(results['PC'], categories=df_pca.columns)
     return results
 
-import itertools
 
 def plot_pca_grid(DF, pc_list, meta_list):
     df = []

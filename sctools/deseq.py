@@ -15,7 +15,7 @@ import pandas as pd
 import scanpy as sc
 
 import itertools
-def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, var_of_interest: str):
+def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, vars_of_interest):
     """
     :param formula: something like "~treatment + batch", needs to start with a ~
     :param var_of_interest: which variable in the formula is actually of interest (the other are just nuissance, regressed out
@@ -24,7 +24,12 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, var_of_interest: str):
     :return: a dict of dataframes, corresponding to the different comparisons involing var_of_interest
     """
     assert formula.startswith('~'), "Formula must start with ~"
-    assert isinstance(var_of_interest, str), "var_of_interest must be a string"
+
+    # turn into a list of only single string element is provided
+    if isinstance(vars_of_interest, str):
+        vars_of_interest = [vars_of_interest]
+
+    assert isinstance(vars_of_interest, list), "var_of_interest must be a string"
     importr("DESeq2")
     importr("PCAtools")
     """
@@ -58,14 +63,15 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, var_of_interest: str):
     ro.r('p <- PCAtools::pca(assay(vsd), metadata = colData(dds), removeVar = 0.1, scale=F)')
 
     pandas2ri.activate()
-    result_names = list(ro.r('resultsNames(dds)'))
-    results_of_interest = [_ for _ in result_names if _.startswith(var_of_interest)]
     result_dict = {}
-    for r in results_of_interest:
-        print(f'shrinkage for {r}')
-        ro.r(f'resLFC <- lfcShrink(dds, coef="{r}", type="apeglm")')
-        df = ro.r('as.data.frame(resLFC)')
-        result_dict[r] = df
+    result_names = list(ro.r('resultsNames(dds)'))
+    for var in vars_of_interest:
+        results_of_interest = [_ for _ in result_names if _.startswith(var)]
+        for r in results_of_interest:
+            print(f'shrinkage for {r}')
+            ro.r(f'resLFC <- lfcShrink(dds, coef="{r}", type="apeglm")')
+            df = ro.r('as.data.frame(resLFC)')
+            result_dict[r] = df
 
     # get the PCA
     df_pca = ro.r('p')
@@ -77,7 +83,8 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, var_of_interest: str):
     pandas2ri.deactivate()
 
     dict_pca['df_pca'] = dict_pca['rotated'].merge(dict_pca['metadata'], left_index=True, right_index=True)
-    return result_dict, dict_pca, adata_vsd
+    return result_dict, dict_pca, adata_vsd, ro.r('dds')
+
 
 def DESeq2_pseudobulk_wrapper_LRT(adata_pseudo, formula_full: str, formula_reduced: str):
     """
@@ -134,7 +141,7 @@ def DESeq2_pseudobulk_wrapper_LRT(adata_pseudo, formula_full: str, formula_reduc
     pandas2ri.deactivate()
 
     dict_pca['df_pca'] = dict_pca['rotated'].merge(dict_pca['metadata'], left_index=True, right_index=True)
-    return df_DE, dict_pca, adata_vsd
+    return df_DE, dict_pca, adata_vsd, ro.r('dds')
 
 
 """

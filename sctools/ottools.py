@@ -82,7 +82,6 @@ def calc_patient_matrix(adata, cost_matrix, group_name, ot_method, ot_params=Non
     return pd.DataFrame(dmat_emd_df)
 
 
-
 def yield_pairs_compute_cost(adata, cost_matrix_fn, group_name):
     """ computing the cost matrix, instead of just subsetting the HUGE matrix
     """
@@ -221,24 +220,23 @@ def display_distance_matrix_old(distance_matrix, sample_names, method='average')
 def mds_embedding(df_flat, distance_field='debiased_distance'):
 
     distance_matrix = flatdf_to_distance(df_flat, distance_field)
-
     mds = MDS(n_components=2, metric=True, dissimilarity='precomputed', n_init=200)
-
     mds_emb = mds.fit_transform(distance_matrix)
 
     # lets plot it a little nicer
     df = pd.DataFrame(mds_emb, columns=['mds1', 'mds2'])
     df['samplename'] = distance_matrix.index
-#     df['samplename'] = [_.split('_')[0] for _ in sample_names]
 
     plt.figure(figsize=(10,5))
     plt.subplot(121)
     sns.scatterplot(x='mds1', y='mds2', hue='samplename', data=df, legend=False)
-
+    plt.axis('equal')
     plt.subplot(122)
     sns.scatterplot(x='mds1', y='mds2', hue='samplename', data=df)
     plt.legend()
+    plt.axis('equal')
 
+    return mds_emb
 
 def _get_edges_from_transport_plan(transport_plan, n_lines):
     """

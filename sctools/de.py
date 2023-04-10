@@ -450,3 +450,5 @@ def differential_expression_lm_parallel(adata, formula, cores=4):
     chunk the expression matrix in multiple column blocks, do DE on each block in parallel
     """
 
+    n_chunks = 100
+

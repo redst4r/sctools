@@ -103,14 +103,14 @@ class Phantom():
         r = df_chimer.query('r>=@rmin and r<=@rmax').r
         mr = df_chimer.query('r>=@rmin and r<=@rmax').total.values
         zr = df_chimer.query('r>=@rmin and r<=@rmax').n_nonchimeric.values
-        df_binom_fit =binomial_model_fit(r, mr, zr)
+        # df_binom_fit =binomial_model_fit(r, mr, zr)
         df_binom_fit_exact =binomial_model_fit_exact(r, mr, zr, self.S)
         df_binom_fit_exact = df_binom_fit_exact.sort_values('logp', ascending=False)
         phat = df_binom_fit_exact.p.values[0]
 
         if plotting:
             plt.figure()
-            plt.scatter(np.log10(df_binom_fit.p), df_binom_fit.logp, label='approx')
+            # plt.scatter(np.log10(df_binom_fit.p), df_binom_fit.logp, label='approx')
             plt.scatter(np.log10(df_binom_fit_exact.p), df_binom_fit_exact.logp, s=1, label='exact')
             plt.ylim([-1e8, 12])
             plt.legend()
@@ -168,7 +168,7 @@ class Phantom():
 #         return pi
     def get_pi_r_hat(self, p_nohop):
 #         v = self.get_vr_hat(samplename)
-        assert self.vrs is not None
+        assert self.vrs is not None, "vrs not available. call .get_all_vr() to precompute"
         assert p_nohop> 0.5, "p_nohop < 0.5, make sure you didnt input the SIHR instead"
         v = self.vrs
         pi= (v * (self.S-1) + (p_nohop-1)) / (self.S *p_nohop -1)
@@ -191,7 +191,7 @@ class Phantom():
         r = np.sum(list(fingerprint.values()))
         pir = self.get_pi_r_hat(p_nohop)[r].to_dict() # dict with samplenames
 
-        post_unnorm = {s: 
+        post_unnorm = {s:
             multinomial_loglikelihood(
                 fp=fingerprint,
                 pvec= self.get_multinomial_vector(p_nohop, s)

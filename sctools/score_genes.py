@@ -288,3 +288,85 @@ def score_genes_cell_cycle(
     adata.obs['phase'] = phase
     logg.info('    \'phase\', cell cycle phase (adata.obs)')
     return adata if copy else None
+
+
+
+def my_ssgsea(x: pd.Series, omega: float, gs):
+    """
+    GSEA gene set scoring. See https://www.pathwaycommons.org/guide/primers/data_analysis/gsea/ for some details
+    In brief:
+    1. Rank genes
+    2. go over the ranked genes, starting with the higest. Calculate a running sum, incrementing the sum
+       each time we encounter a gene in the set, decrement the counter when we encouter a gene outside the set
+    3. Aggregate the running sum: Maximum deviation from zero
+
+    :param x: Rank-order statistic. Note that this IS NOT THE RANK itself. This is the quantity thats ranked. It is ALSO DIRECTLY ENTERNG the test ()!
+    :param omega: exponent of the increments, see above link (its called alpha there)
+    :param gs: Gene set, some iterable of gene names
+    df
+    """
+
+    assert isinstance(x, pd.Series)
+    gene_set = set(gs)
+
+    # actually, get rid of genes that are not even in the data
+    # those will screw up our Fi_not vector/values
+    gene_set = gene_set & set(x.index)
+
+    #first sort by absolute expression value, starting with the highest expressed genes first
+    xsorted = x.sort_values(axis=0, ascending=False, inplace=False)
+    keys_sorted = xsorted.index.tolist()
+
+    # xsorted contains the "effect sizes", which should be a positive contributoin to the running sum.
+    # Notice the |r| notation in the publications!
+    xsorted = np.abs(xsorted)
+
+    if False:
+        ## seems slow, maybe because we dont iterate directly over keys_sorted
+        nom_vector = np.zeros(len(x))
+        for t in range(len(x)):
+            # the_rank = len(x)-t   # actually the highest rank (the first one) is N, the lowest rank 1
+            s = xsorted.iloc[t]
+            nom_vector[t] = s**omega if keys_sorted[t] in gene_set else 0
+    else:
+        # muchfaster
+        nom_vector = []
+        for g in keys_sorted:
+            if g in gene_set:
+                s = xsorted.loc[g]
+                increment = s**omega
+            else:
+                increment = 0
+            nom_vector.append(increment)
+    # Fi is the cumululative divided by the full sum
+    Fi = np.cumsum(nom_vector)
+
+    if Fi[-1] < 0:
+        print(f"division by zero, somethings wrong here: {gene_set}: {Fi}")
+    Fi = Fi / Fi[-1]
+
+    # now for the term summarizing the genes NOT in the vector
+    NO_vector = np.zeros(len(x))
+    for t in range(len(x)):
+        NO_vector[t] = 1 if not keys_sorted[t] in gene_set else 0
+    Fi_not = np.cumsum(NO_vector) / (len(x) - len(gene_set))
+
+    return max_deviation_from_zero(Fi - Fi_not)
+
+
+def max_deviation_from_zero(x):
+    """
+    for vector x, get its biggest deviation from zero (inlcuding its sign)
+    e.g:
+    x = [0,1,-1, 2]  -> 2
+    x = [0,1,-2, 1]  -> -2
+
+    This is different than np.max(np.abs(x))!!
+    """
+    themax = np.max(x)
+    themin = np.min(x)
+
+    if np.abs(themax) > np.abs(themin):
+        return themax
+    else:
+        return themin

@@ -239,6 +239,24 @@ def plot_mean_var(adata, split=None):
         p2 = p2 + pn.facet_wrap('samplename')
     return p1, p2
 
+from sctools.misc import load_obs
+import h5py
+def extract_cmap_from_h5ad(h5ad_filename, field: str):
+    """
+    turn the colors stored in adata.uns into a dict: category->color
+    :param h5ad_filename:
+    :param field: which field in .obs to get the color coding for
+    """
+    obs = load_obs(h5ad_filename)
+    assert obs[field].dtype == "category"
+
+    with h5py.File(h5ad_filename, 'r') as f:
+        colors = f['/uns'][f'{field}_colors'][:]  # pull it into mem!
+
+    cm = {}
+    for i, cat_name in enumerate(obs[field].cat.categories):
+        cm[cat_name] = colors[i]
+    return cm
 
 def extract_cmap_from_adata(adata, field: str):
     """

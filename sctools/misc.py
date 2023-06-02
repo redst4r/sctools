@@ -87,12 +87,10 @@ def _downsample_array(
 
 
 def load_obs(h5ad_filename):
-    """
-    loads the obs-dataframe only
-    """
-    with h5py.File(h5ad_filename, 'r') as f:
-        obs = read_dataframe(f['/obs'])
-    return obs
+    return load_dataframe(h5ad_filename, '/obs')
+
+def load_var(h5ad_filename):
+    return load_dataframe(h5ad_filename, '/var')
 
 def load_dataframe(h5ad_filename, path):
     """

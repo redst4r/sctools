@@ -79,7 +79,7 @@ def calc_patient_matrix(adata, cost_matrix, group_name, ot_method, ot_params=Non
         wd2_debiased = wd2 - 0.5 * debias_ot[g1] - 0.5 * debias_ot[g2]
         dmat_emd_df.append({'group1': g1, 'group2': g2, 'distance': wd2, 'debiased_distance':wd2_debiased, 'upper_tria': 'yes'})
         dmat_emd_df.append({'group1': g2, 'group2': g1, 'distance': wd2, 'debiased_distance':wd2_debiased, 'upper_tria': 'no'})  # symmetric
-    return pd.DataFrame(dmat_emd_df)
+    return pd.DataFrame(dmat_emd_df) , transport_plans
 
 
 def yield_pairs_compute_cost(adata, cost_matrix_fn, group_name):
@@ -308,11 +308,6 @@ def visualize_transport(X1, X2, gamma, n_lines, size=5, background_X=None, cost_
                      (X2[j,0], X2[j,1])
                     ]
                 )
-
-                # plt.plot([X1[i,0], X2[j,0]], [X1[i,1], X2[j,1]],
-                #          alpha=0.3,
-                #          color=plt.cm.cool(col))
-
     print('#lines:', len(lines))
 
     lc = mc.LineCollection(lines, colors=colors, linewidths=linewidth, alpha=linealpha)

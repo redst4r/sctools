@@ -258,28 +258,28 @@ def isometric_basis_vectors_SD(i, D):
 
     return C(np.exp(e), axis=0)
 
-def irl_transform(x, mode='SD'):
+def ilr_transform(x, mode='SD'):
     assert mode in ["SD", "RD"]
-    N_obs, D = x.shape
+    _N_obs, D = x.shape
 
     if mode=="RD":
         # moving to R^D projection on the RD basis vectors
         x_clr = clr_transform(x, axis=1)
-        irl = []
+        ilr = []
         for i in range(1,D):
             u = isometric_basis_vectors_RD(i, D)
-            irl.append(x_clr @ u)
-        return np.vstack(irl).T
+            ilr.append(x_clr @ u)
+        return np.vstack(ilr).T
 
     elif mode=="SD":
         # staying in S, projecting onto the SD basis
         # be sure to use the aitchinson inner product for projection!
-        irl = []
+        ilr = []
         for i in range(1,D):
             u = isometric_basis_vectors_SD(i, D).reshape(1,-1)
             _t = inner_product(x,u).T
 
-            irl.append(_t)
-        return np.vstack(irl).T
+            ilr.append(_t)
+        return np.vstack(ilr).T
     else:
         raise ValueError(f'unknown mode {mode}')

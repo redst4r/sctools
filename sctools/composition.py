@@ -283,3 +283,39 @@ def ilr_transform(x, mode='SD'):
         return np.vstack(ilr).T
     else:
         raise ValueError(f'unknown mode {mode}')
+
+def _sign_to_phi(sign_matrix):
+    """
+    helper function for `ilr_transform_from_sign_matrix()`
+    """
+    n_species = sign_matrix.shape[1]
+    assert sign_matrix.shape[0] == n_species-1, "sign amtrix dimensions are wrong"
+    n_plus = (sign_matrix == 1).sum(1)
+    n_minus = (sign_matrix == -1).sum(1)
+
+    phi = np.zeros((n_species-1, n_species))
+    for i in range(n_species-1):
+        for j in range(n_species):
+            if sign_matrix[i,j] == 1:
+                phi[i,j] = 1/n_plus[i] * np.sqrt((n_plus[i]*n_minus[i]) / (n_plus[i]+n_minus[i]))
+
+            elif sign_matrix[i,j] == -1:
+                phi[i,j] = - 1/n_minus[i] * np.sqrt((n_plus[i]*n_minus[i]) / (n_plus[i]+n_minus[i]))
+            else:
+                phi[i,j] = 0
+    return phi
+
+def ilr_transform_from_sign_matrix(x, sign_matrix):
+    """
+    Create a ILR-transform from the data `x` using the SBP (sequeuantial binary partitions)
+
+    from
+        A phylogenetic transform enhances analysis of compositional microbiota data, page 12
+
+    1. turn the sign matrix into PHI
+    2. CLR transform the data
+    3 ILR = CLR @ PHI.T
+    """
+    phi = _sign_to_phi(sign_matrix)
+    x_clr = clr_transform(x, axis=1)
+    return x_clr @ phi.T

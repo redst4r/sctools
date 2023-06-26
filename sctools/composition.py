@@ -35,6 +35,19 @@ def aichinson_distance(x, axis=1):
     d = pdist(y)
     return squareform(d)
 
+def bayesian_sample(x, n_samples):
+    """
+    sample from a posterior distribution of proportions, where x are the observed counts for each type
+    """
+    x_bayes = []
+    for i in tqdm.trange(len(x)):
+        x_bayes.append(dirichlet(0.5 + x[i]).rvs(n_samples).T)
+
+    ## samples x features x mcmc_samples
+    x_bayes = np.stack(x_bayes)
+    return x_bayes
+
+
 # clr is scale invariant
 # x = np.array([[1,2,0,4], [10,11,12,13]])
 # x_norm = x/x.sum(1, keepdims=1)
@@ -47,15 +60,7 @@ def clr_transform_bayesian(x, axis, n_samples):
     """
     # NOTE: this is WRONG, dont normalize before, we need the full counts for the dirichlet!!
     # WRONG:     x_norm = x/x.sum(1, keepdims=1)
-
-    x_bayes = []
-    for i in tqdm.trange(len(x)):
-        x_bayes.append(dirichlet(0.5 + x[i]).rvs(n_samples).T)
-#         x_bayes.append(x[i])
-
-    ## samples x features x mcmc_samples
-    x_bayes = np.stack(x_bayes)
-
+    x_bayes = bayesian_sample(x, n_samples)
     x_clr = clr_transform(x_bayes,axis=axis)
     return x_clr
 
@@ -190,22 +195,15 @@ def power(x, alpha):
     return C(x**alpha)
 
 def inner_product(x,y, axis=1):
-    if False:
-        gx = gmean(x, axis=axis).reshape(-1,1)
-        gy = gmean(y, axis=axis).reshape(-1,1)
-        I = np.sum(np.log(x/gx) * np.log(y/gy), axis=axis)
-        return I
+    """
+    inner product of two vectors in Aitchinson geometry
 
-    else:
-        log_gx = log_geometric_mean(x, axis=axis)
-        log_gy = log_geometric_mean(y, axis=axis)
-
-    #     np.testing.assert_allclose(log_gx,  np.log(gx))
-        _t = (np.log(x) - log_gx) * (np.log(y)-log_gy)
-
-    #     np.testing.assert_allclose(I, np.sum(_t, axis=axis))
-
-        return np.sum(_t, axis=axis)
+    The input vectors life on the simplex, they are NOT clr/ilr transformed
+    """
+    log_gx = log_geometric_mean(x, axis=axis)
+    log_gy = log_geometric_mean(y, axis=axis)
+    _t = (np.log(x) - log_gx) * (np.log(y)-log_gy)
+    return np.sum(_t, axis=axis)
 
 def get_straight_line(x0,p, t_space):
     """
@@ -265,11 +263,18 @@ def ilr_transform(x, mode='SD'):
     if mode=="RD":
         # moving to R^D projection on the RD basis vectors
         x_clr = clr_transform(x, axis=1)
-        ilr = []
+        Umat = []  # the basis vectoars
         for i in range(1,D):
             u = isometric_basis_vectors_RD(i, D)
-            ilr.append(x_clr @ u)
-        return np.vstack(ilr).T
+            Umat.append(u)
+        Umat = np.stack(Umat)
+        return x_clr @ np.stack(Umat).T
+
+        # ilr = []
+        # for i in range(1,D):
+        #     u = isometric_basis_vectors_RD(i, D)
+        #     ilr.append(x_clr @ u)
+        #return np.vstack(ilr).T
 
     elif mode=="SD":
         # staying in S, projecting onto the SD basis
@@ -319,3 +324,96 @@ def ilr_transform_from_sign_matrix(x, sign_matrix):
     phi = _sign_to_phi(sign_matrix)
     x_clr = clr_transform(x, axis=1)
     return x_clr @ phi.T
+
+
+def ilr_transform_from_sign_matrix_bayes(x, sign_matrix, n_samples):
+    """
+    Create a ILR-transform from the data `x` using the SBP (sequeuantial binary partitions)
+    with bayesian uncertainties in the composition
+
+    from
+        A phylogenetic transform enhances analysis of compositional microbiota data, page 12
+
+    1. turn the sign matrix into PHI
+    2. CLR transform the data
+    3 ILR = CLR @ PHI.T
+    """
+    phi = _sign_to_phi(sign_matrix)
+    x_clr_bayes = clr_transform_bayesian(x, axis=1, n_samples=n_samples)
+    return np.tensordot(x_clr_bayes, phi.T , axes=([1], [0])).transpose([0,2,1])
+
+
+def ilr_transform_bayes(x,n_samples):
+    """
+    Isometric log ratio transform, with bayesian uncertainy in the 3rd dimension
+    """
+    _N_obs, D = x.shape
+    Umat = []  # the basis vectoars
+    for i in range(1,D):
+        u = isometric_basis_vectors_RD(i, D)
+        Umat.append(u)
+    Umat = np.stack(Umat)
+
+    x_clr_bayes = clr_transform_bayesian(x, axis=1, n_samples=n_samples)
+    return  np.tensordot(x_clr_bayes, Umat.T , axes=([1], [0])).transpose([0,2,1])
+
+def ilr_pivot(x, pivot_element, ):
+    """
+    Isometric log ratio transform, with pivot elemnt of choice:
+    The given variable gets rotated into the first coordinate of the transform,
+    such that the first ILR cooridate is ln(x_j/ prod(x_i!=j)): The ratio of x_j vs all other components
+    This makes the first ILR coordinate easily interpretable\
+
+    see:
+        [1] "Linear regression with compositional explanatory variables", 10.1080/02664763.2011.644268
+    """
+    # TODO this can be done just reordering axes
+    x1 = x[:, [pivot_element]]
+    xremain = np.delete(x,  [pivot_element], axis=1)
+    xnew = np.hstack([x1,  xremain])
+
+    # for the consecutive 1 vs all splits, Eq5 in ref[1]
+    x_irl = []
+    D = x.shape[1]
+    for i in range(D-1):  # one-based indexing in the formula, hence we need to shift +1
+        ii = i+ 1 # one-based indexing in the formula, hence we need to shift +1
+        pre = np.sqrt((D-ii)/(D-ii+1)) 
+        y = np.log(xnew[:, i]).flatten() - log_geometric_mean(xnew[:, (i+1):], axis=1).flatten()
+        x_irl.append(pre*y)
+    x_irl = np.stack(x_irl, axis=1)
+
+    assert x_irl.shape[1] == x.shape[1]-1
+    return x_irl
+def ilr_pivot_bayesian(x, pivot_element, n_samples):
+
+    # TODO this can be done just reordering axes
+    x1 = x[:, [pivot_element]]
+    xremain = np.delete(x,  [pivot_element], axis=1)
+    xnew = np.hstack([x1,  xremain])
+
+    new_bayesian = bayesian_sample(xnew, n_samples)
+    # for the consecutive 1 vs all splits
+    x_irl = []
+    D = x.shape[1]
+    for i in range(D-1):  # one-based indexing in the formula, hence we need to shift +1
+        ii = i+ 1 # one-based indexing in the formula, hence we need to shift +1
+        pre = np.sqrt((D-ii)/(D-ii+1)) 
+        # trick here is to keep the second dim
+        y = np.log(new_bayesian[:, [i], :]) - log_geometric_mean(new_bayesian[:, (i+1):, :], axis=1)
+        x_irl.append(pre*y)
+    x_irl = np.concatenate(x_irl, axis=1)
+    return x_irl
+
+
+def variation_matrix(adata):
+    """
+    var[log(x_i/x_j)] over samplse
+    """
+    p = adata.shape[1]
+    V = np.zeros((p,p))
+    for i in range(p):
+        for j in range(p):
+            xi = adata.X[:,i] + 0.5  # psuedocounts against 0
+            xj = adata.X[:,j]+ 0.5
+            V[i,j] = np.var(np.log(xi)-np.log(xj))
+    return pd.DataFrame(V, index=adata.var_names, columns=adata.var_names)

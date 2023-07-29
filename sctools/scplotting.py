@@ -252,11 +252,19 @@ def extract_cmap_from_h5ad(h5ad_filename, field: str):
 
     with h5py.File(h5ad_filename, 'r') as f:
         colors = f['/uns'][f'{field}_colors'][:]  # pull it into mem!
-
+        # depedning on the h5py library version, this could come back as string or bytestring
+        colors = [try_into_string(_) for _ in colors]
     cm = {}
     for i, cat_name in enumerate(obs[field].cat.categories):
         cm[cat_name] = colors[i]
     return cm
+
+def try_into_string(s):
+    try:
+        s = s.decode()
+    except (UnicodeDecodeError, AttributeError):
+        pass
+    return s
 
 def extract_cmap_from_adata(adata, field: str):
     """

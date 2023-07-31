@@ -139,17 +139,18 @@ def DESeq2_pseudobulk_wrapper_LRT(adata_pseudo, formula_full: str, formula_reduc
     pandas2ri.activate()
     df_DE = ro.r('as.data.frame(results(dds))')
 
-    # TODO:
-    # make compatible with DESeq2_pseudobulk_wrapper interface:
-    # return adata, fix the r2py conversion!!
-
-
-    # get the PCA
-    df_pca = ro.r('p')
-    dict_pca = dict(df_pca.items())
     df_vsd = ro.r('assay(vsd)')
     adata_vsd = sc.AnnData(df_vsd.T, obs=adata_pseudo.obs, var=adata_pseudo.var)
-    dict_pca['metadata'] = ro.r('as.data.frame')(dict_pca['metadata'])
+
+    dict_pca = {}
+    dict_pca['metadata'] = ro.r('as.data.frame(p$metadata)')
+    dict_pca['rotated'] = ro.r('as.data.frame(p$rotated)')
+    dict_pca['loadings'] = ro.r('as.data.frame(p$loadings)')
+
+    # get the PCA
+    # df_pca = ro.r('p')
+    # dict_pca = dict(df_pca.items())
+    # dict_pca['metadata'] = ro.r('as.data.frame')(dict_pca['metadata'])
 
     pandas2ri.deactivate()
 

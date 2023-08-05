@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from scipy.spatial.distance import squareform, pdist
 import scipy.spatial as sp, scipy.cluster.hierarchy as hc
 import numpy as np
+import gc
 
 def get_filtered_matrix(adata, matrix, g1, g2, group_name):
     """
@@ -43,6 +44,12 @@ def yield_pairs(adata, cost_matrix, group_name):
 def calc_patient_matrix(adata, cost_matrix, group_name, ot_method, ot_params=None):
     """
     main OT function: given an attribute [in .obs] calcualte OT beetween cells from those groups
+
+    Parameters:
+    :param adata: AnnData containing the scRNAseq data
+    :param cost_matrix: The cost-matrix of transporting each cell to each other. Must be adata.shape[0] x adata.shape[0]
+    :param group_name: A field in adata.obs[] used to define the OT groups to compare
+    :param ot_method: ['exact', 'entropy']
     """
 
     if ot_params is None:
@@ -83,7 +90,8 @@ def calc_patient_matrix(adata, cost_matrix, group_name, ot_method, ot_params=Non
 
 
 def yield_pairs_compute_cost(adata, cost_matrix_fn, group_name):
-    """ computing the cost matrix, instead of just subsetting the HUGE matrix
+    """
+    computing the cost matrix, instead of just subsetting the HUGE matrix
     """
     groups = np.sort(np.unique(adata.obs[group_name].values))
 
@@ -102,8 +110,16 @@ def yield_pairs_compute_cost(adata, cost_matrix_fn, group_name):
 def calc_patient_matrix_cost_matrix_on_the_fly(adata, cost_matrix_fn, group_name, ot_method, ot_params=None, verbose=False):
     """
     this calculates the cost matrix separatley for each pair, instead of one HUGE matrix and indexing into it
+    This function is usefull for LARGE datasets. Storing the transport plans (a series of n1 x n2 matrixes, n1, n2 are groupsizes) gets expensive, so we drop those
 
-    main OT function: given an attribute [in .obs] calcualte OT beetween cells from those groups
+    :param adata: scRNAseq single cell data
+    :param cost_matrix_fn: how to calculate the cost amtrix between two groups. must be of signature f(AnnData, AnnData), producing a cost matrix between the two data groups
+    ;param group_name: field in adata.obs to indentify the OT groups
+    :param ot_method: ['exact', 'entropy']
+
+
+    :returns:
+    - The OT distances in a flat dataframe
     """
     if ot_params is None:
         ot_params = {}
@@ -133,18 +149,21 @@ def calc_patient_matrix_cost_matrix_on_the_fly(adata, cost_matrix_fn, group_name
 
         debias_ot[g], _ = ot_function(filtered_D)
         dmat_emd_df.append({'group1': g, 'group2': g, 'distance': debias_ot[g], 'debiased_distance': 0 , 'upper_tria': 'no'})
+        gc.collect()
 
-    transport_plans = {}
+    # transport_plans = {}
     for g1, g2, filtered_D in tqdm.tqdm(yield_pairs_compute_cost(adata, cost_matrix_fn, group_name), desc='OT pairs'):
         if verbose:
             print(f'{g1} vs {g2}: {filtered_D.shape}')
-        wd2, transport_plans[(g1,g2)] = ot_function(filtered_D)
+        # wd2, transport_plans[(g1,g2)] = ot_function(filtered_D)
+        wd2, _ = ot_function(filtered_D)
         if verbose:
             print('done')
         wd2_debiased = wd2 - 0.5 * debias_ot[g1] - 0.5 * debias_ot[g2]
         dmat_emd_df.append({'group1': g1, 'group2': g2, 'distance': wd2, 'debiased_distance':wd2_debiased, 'upper_tria': 'yes'})
         dmat_emd_df.append({'group1': g2, 'group2': g1, 'distance': wd2, 'debiased_distance':wd2_debiased, 'upper_tria': 'no'})  # symmetric
-    return pd.DataFrame(dmat_emd_df), transport_plans
+        gc.collect()
+    return pd.DataFrame(dmat_emd_df)
 
 
 def calc_patient_matrix_old(adata, cost_matrix, group_name, ot_method, ot_params=None):
@@ -250,7 +269,7 @@ def _get_edges_from_transport_plan(transport_plan, n_lines):
         pdf = np.sort(conditional_map)[::-1]
 #         cdf =  np.cumsum(pdf)
 #         cutoff = np.min(pdf[cdf <= 0.95])
-        cutoff = pdf[n_lines]
+        cutoff = pdf[np.minimum(n_lines, len(pdf))-1]
         ix = conditional_map > cutoff
         adj_mat[i,:] = ix
     return adj_mat

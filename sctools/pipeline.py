@@ -222,6 +222,7 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clus
 
         # storing the original/uncorrected PCA
         adata.obsm['X_pca_original'] = adata.obsm['X_pca'].copy()
+        adata.varm['PCs_original'] = adata.varm['PCs'].copy()
 
         nobatch_key = 'nobatch'  # dont change this, its referenced in cellxgene export!
         logging.info('Neighbors')

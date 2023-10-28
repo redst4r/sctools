@@ -50,10 +50,6 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, vars_of_interest):
     ro.r('counts = assay(scanpy.data)')
     ro.r(f'dds = DESeqDataSetFromMatrix(countData = counts, colData = coldata, design= {formula})')
 
-    # striagten out the levels
-    # note that RPy2 respects pd.Categorical levels, hence we can do taht in python already!
-    # ro.r('dds$diagnosis <- factor(dds$diagnosis, levels = c("NE", "M", "D", "T", "NS"))')
-
     # doing DEseq computations
     print('Main DESeq conputation')
     ro.r('dds <- DESeq(dds)')
@@ -68,10 +64,21 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, vars_of_interest):
     for var in vars_of_interest:
         results_of_interest = [_ for _ in result_names if _.startswith(var)]
         for r in results_of_interest:
+
+            # to get unshrunk fold changes
+            ro.r(f'res <- results(dds, name="{r}")')
+            df_unshrunk = ro.r('as.data.frame(res)')
+
             print(f'shrinkage for {r}')
             ro.r(f'resLFC <- lfcShrink(dds, coef="{r}", type="apeglm")')
             df = ro.r('as.data.frame(resLFC)')
-            result_dict[r] = df
+
+            # merge the shrunk and unshrunk
+            df_merged = df.merge(
+                df_unshrunk[['log2FoldChange', 'lfcSE']].rename({'log2FoldChange': 'log2FoldChange_unshrunk', 'lfcSE': 'lfcSE_unshrunk'}, axis=1),
+                left_index=True, right_index=True
+            )
+            result_dict[r] = df_merged
 
     df_vsd = ro.r('assay(vsd)')
     adata_vsd = sc.AnnData(df_vsd.T, obs=adata_pseudo.obs, var=adata_pseudo.var)
@@ -91,8 +98,8 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, vars_of_interest):
     pandas2ri.deactivate()
 
     dict_pca['df_pca'] = dict_pca['rotated'].merge(dict_pca['metadata'], left_index=True, right_index=True)
-    return result_dict, dict_pca, adata_vsd, ro.r('dds')
 
+    return result_dict, dict_pca, adata_vsd, ro.r('dds')
 
 def DESeq2_pseudobulk_wrapper_LRT(adata_pseudo, formula_full: str, formula_reduced: str):
     """

@@ -239,6 +239,7 @@ Isometric logratio transform
 
 def isometric_basis_vectors_RD(i, D):
     "basis for compositional data in real space"
+    "Eq 17 in the ILR paper"
     assert i>0, "index starts at 1"
     assert i<=D-1, "index max at D-1"
     pre = np.sqrt(i/(i+1))
@@ -248,6 +249,7 @@ def isometric_basis_vectors_RD(i, D):
 
 def isometric_basis_vectors_SD(i, D):
     "basis for compositional data in simplex space"
+    "Eq 18 in the ILR transform"
     assert i>0, "index starts at 1"
     assert i<=D-1, "index max at D-1"
 

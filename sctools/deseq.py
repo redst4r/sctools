@@ -89,6 +89,8 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, vars_of_interest):
     dict_pca['metadata'] = ro.r('as.data.frame(p$metadata)')
     dict_pca['rotated'] = ro.r('as.data.frame(p$rotated)')
     dict_pca['loadings'] = ro.r('as.data.frame(p$loadings)')
+    dict_pca['dispersions'] = ro.r('as.data.frame(mcols(dds))')
+    dict_pca['size_factors'] = ro.r('sizeFactors(dds)')
     # dict_pca['variance'] = ro.r('as.data.frame(p$variance)')
     # dict_pca['sdev'] = ro.r('as.data.frame')(dict_pca['sdev'])
     # dict_pca['xvars'] = ro.r('as.data.frame')(dict_pca['xvars'])

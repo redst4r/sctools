@@ -152,7 +152,9 @@ def calc_patient_matrix_cost_matrix_on_the_fly(adata, cost_matrix_fn, group_name
         gc.collect()
 
     # transport_plans = {}
-    for g1, g2, filtered_D in tqdm.tqdm(yield_pairs_compute_cost(adata, cost_matrix_fn, group_name), desc='OT pairs'):
+    n_groups = len(adata.obs[group_name].unique())
+    n_comparisions = int(n_groups * (n_groups -1 ) / 2 )
+    for g1, g2, filtered_D in tqdm.tqdm(yield_pairs_compute_cost(adata, cost_matrix_fn, group_name), desc='OT pairs', total=n_comparisions):
         if verbose:
             print(f'{g1} vs {g2}: {filtered_D.shape}')
         # wd2, transport_plans[(g1,g2)] = ot_function(filtered_D)

@@ -2,7 +2,9 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 import numpy as np
 import tqdm
+import seaborn as sns
 import plotnine as pn
+import numpy as np
 
 godsnot_64 = [
     # "#000000",  # remove the black, as often, we have black colored annotation
@@ -35,9 +37,7 @@ def rand_cmap(nlabels, type='bright', first_color_black=True, last_color_black=F
     :param verbose: Prints the number of labels and shows the colormap. True or False
     :return: colormap for matplotlib
     """
-    from matplotlib.colors import LinearSegmentedColormap
     import colorsys
-    import numpy as np
 
 
     if type not in ('bright', 'soft'):
@@ -289,3 +289,26 @@ def extract_colorvector_from_adata(adata, field: str):
 
     cvector = [cmap[_] for _ in adata.obs[field]]
     return cvector
+
+def plot_pca_heatmap(A, component, topn=15, xticklabels=False):
+    """
+    Seurat-like plot of the top-n genes in along a princpal component.
+
+    """
+    ix_sort_pos = np.argsort(A.varm['PCs'][:,component])[-topn:][::-1]
+    ix_sort_neg = np.argsort(-A.varm['PCs'][:,component])[-topn:] # dont revrse on purpose
+
+    pos_genes = A.var_names[ix_sort_pos].tolist()
+    neg_genes = A.var_names[ix_sort_neg].tolist()
+
+    # sort cells along that PC
+    ix_sort_pc = np.argsort(A.obsm['X_pca'][:, component])
+
+    df = A[ix_sort_pc, pos_genes+neg_genes].to_df().T
+
+    # subtract mean
+    df = df.sub(df.mean(axis=1), axis=0)
+    df = df.div(df.std(axis=1), axis=0)
+    sns.heatmap(df, yticklabels=True, xticklabels=xticklabels, center=0, vmin=-4, vmax=4)
+    plt.title(f'PC {component}');
+    plt.show()

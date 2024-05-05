@@ -222,7 +222,10 @@ def postprocessing_michi_kallisto_recipe(adata, harmony_correction, harmony_clus
 
         # storing the original/uncorrected PCA
         adata.obsm['X_pca_original'] = adata.obsm['X_pca'].copy()
-        adata.varm['PCs_original'] = adata.varm['PCs'].copy()
+
+        # turns out this doesnt do anything, harmony doesnt change the PCs itself, just the scores
+        # i.e. it just moves the data aroudn in PC space
+        # adata.varm['PCs_original'] = adata.varm['PCs'].copy()
 
         nobatch_key = 'nobatch'  # dont change this, its referenced in cellxgene export!
         logging.info('Neighbors')
@@ -303,7 +306,18 @@ def _do_harmony(adata, harmony_correction: str, harmony_clusters):
     return corrected_X_pca
 
 
-def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, method='wilcoxon', min_in_group_fraction=0.0, max_out_group_fraction=1.0, use_raw=True, key_added='rank_genes_groups', csc_transform=True):
+def differential_expression_michi_kallisto_recipe(
+        adata,
+        groupby,
+        n_genes=100,
+        method='wilcoxon',
+        min_in_group_fraction=0.0,
+        max_out_group_fraction=1.0,
+        min_fold_change=-np.inf,
+        use_raw=True,
+        key_added='rank_genes_groups',
+        csc_transform=True
+    ):
     """
     scanpy by default runs the differential expression on .raw.X, but also assumes
     logarithmized data. Otherwise, pvals come out wrong!
@@ -356,7 +370,7 @@ def differential_expression_michi_kallisto_recipe(adata, groupby, n_genes=100, m
                                    key=key_added,
                                    key_added=f'{key_added}_filtered',
                                    min_in_group_fraction=min_in_group_fraction,
-                                   min_fold_change=0,  # not filteirng for fold_change
+                                   min_fold_change=min_fold_change,  # not filteirng for fold_change
                                    max_out_group_fraction=max_out_group_fraction) # not filetering for %expressing outside the cluster
     # now make the filtered genes the default DE genes
     adata.uns[f'{key_added}_unfiltered'] = adata.uns[key_added]
@@ -379,6 +393,53 @@ def export_for_cellxgene(adata, annotations):
                       )
     return _tmp
 
+
+def get_ready_for_write_h5ad(adata):
+    """
+    due to the current issues with mixed Columns in h5ad,
+    alot of `write_h5ad` will actually fails due to weird data in adata.obs/var/uns
+
+    Most common issues:
+    - var containing bool columns
+    - uns containing DE data (rank_gene_groups...)
+
+    lets get rid of those and store the differential expression as `pd.DataFrame`s
+    """
+    # cleanup before saving
+    var_to_drop = ['is_mito','is_ribo', 'is_coding']
+    if adata.raw != None:
+        adata.raw.var.drop([_ for _ in var_to_drop if _ in adata.raw.var],axis=1, inplace=True)
+
+    adata.var.drop([_ for _ in var_to_drop if _ in adata.var],axis=1, inplace=True)
+
+    # move the differneeital expression
+    de_entries = [
+        'rank_genes_groups',
+        'rank_genes_groups_filtered',
+        'rank_genes_groups_unfiltered',
+        'nobatch_rank_genes_groups',
+        'nobatch_rank_genes_groups_filtered',
+        'nobatch_rank_genes_groups_unfiltered'        
+    ]
+    for de in de_entries:
+        if de not in adata.uns.keys():
+            continue
+
+        ## get one DataFrame for each group
+        group_key = adata.uns[de]['params']['groupby']
+        groups = adata.obs[group_key].unique()
+        de_dict = {
+            _ : sc.get.rank_genes_groups_df(adata, group= _, key=de).dropna()  # dropna to make it savable!
+            for _ in sorted(groups)
+         }
+        adata.uns[f"dfdict_{de}"] = de_dict
+
+    for de in de_entries:
+        if de not in adata.uns.keys():
+            continue
+        del adata.uns[de]
+
+    return adata
 
 def annotate_doublets(adata, groupby='samplename', PLOTTING=False, expected_doublet_rate=0.06):
     """

@@ -385,7 +385,7 @@ def export_for_cellxgene(adata, annotations):
                       var=adata.raw.var.copy(),
                       uns=adata.uns,
                       obsm=adata.obsm,
-                      layers=adata.layers,
+                      # layers=adata.layers, # this will fail ALWAYS if there's any layers present on the adata due to size issues
                       obsp=adata.obsp,
                       # these two wont work: adata.raw is N x 35000, but adata.var and varm are N x 4000
                       # varm=adata.varm,

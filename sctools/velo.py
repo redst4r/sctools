@@ -4,7 +4,7 @@ import pandas as pd
 from sctools import kallisto 
 # from sctools import adata_merge, annotate_cellcycle, enrich, annotate_qc_metrics
 
-def load_from_kallisto(h5_filename: str):
+def load_from_kallisto_h5ad(h5_filename: str):
     """
     load the output of kallisto-velocity (which puts out an anndata.AnnData)
     """
@@ -53,7 +53,7 @@ def load_kallisto_and_velocity(fname_kallisto, fname_velocity):
     adata = kallisto.load_from_kallisto(fname_kallisto, kallisto_prefix='gene')
 
     # load the velo object too
-    adata_velo = load_from_kallisto(fname_velocity)
+    adata_velo = load_from_kallisto_h5ad(fname_velocity)
     adata_velo = annotate_velo(adata_velo)
 
     # pull in the nuclear fraction
@@ -67,6 +67,9 @@ def load_kallisto_and_velocity(fname_kallisto, fname_velocity):
     # TODO check overlap size to rule out bugs
 
     shared_cells = sorted(list(set(adata.obs_names ) & set(adata_velo.obs_names)))
+    fraction_overlap = len(shared_cells) / len(set(adata.obs_names ) | set(adata_velo.obs_names))
+    print(f"Overlap of CBs in kallisto vs velocity {100*fraction_overlap:.2f}")
+
     adata = adata[shared_cells]
     adata_velo = adata_velo[shared_cells]
 

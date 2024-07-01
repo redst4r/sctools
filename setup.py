@@ -22,6 +22,7 @@ setup(name='sctools',
           'rnaseqtools @git+https://github.com/redst4r/rnaseqtools',
           'scrublet',
           'harmonypy ==0.0.5',
-          'gprofiler-official'
+          'gprofiler-official',
+          'celltypist',
           ],
       zip_safe=False)

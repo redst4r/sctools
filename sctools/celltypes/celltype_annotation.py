@@ -192,3 +192,29 @@ def build_table_literature_vs_differentially_expressed(cluster_celltype_mapping,
         })
 
     return pd.DataFrame(the_table).sort_values('putative_celltype')
+
+
+import celltypist
+from celltypist import models
+from sctools import pipeline
+import scanpy as sc
+def do_celltypist(adata, modelname='Immune_All_Low.pkl'):
+    """
+    needs to have raw data in adata.raw
+    """
+
+    adata_for_celltypist = pipeline.export_for_cellxgene(adata.copy(), adata.obs.columns)
+    sc.pp.normalize_total(adata_for_celltypist, target_sum=10000)
+    sc.pp.log1p(adata_for_celltypist)
+    predictions = celltypist.annotate(
+        adata_for_celltypist, 
+        model = modelname, 
+        # model = 'Immune_All_High.pkl', 
+        majority_voting = True,
+        # for multilabel prediction (also "Unassigned")
+        # mode = 'prob match', p_thres = 0.5
+    )
+    # A = predictions.to_adata()
+    # just pick out the relevant attributes
+    df_celltypist = predictions.to_adata().obs[['predicted_labels', 'over_clustering', 'majority_voting','conf_score']]
+    return df_celltypist

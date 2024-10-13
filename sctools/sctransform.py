@@ -170,7 +170,7 @@ def plot_model_fit(adata_sc, adata_raw, gene, color=None, plot_quantiles=True):
 
     # the dataframe for the raw/unnormed count data
     count_data = adata_raw.obs.copy()
-    count_data['gene_expression'] = adata_raw[:, gene].X.A.flatten()
+    count_data['gene_expression'] = adata_raw[:, gene].X.toarray().flatten()
 #     count_data['pearson_residual'] = adata_sc[:, gene].X.flatten()
 
     model_data = predict_model(sct_df, gene, adata_raw.obs.n_molecules.values)

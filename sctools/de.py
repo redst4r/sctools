@@ -35,8 +35,8 @@ def DEG_one_vs_all(Q):
     print('precomputing')
     # prec_groups= {gname: Q[Q.obs.query(f'leiden==@gname').index,:] for gname in groupnames}
 
-    prec_groups_means= {gname: Q[Q.obs.query(f'leiden==@gname').index,:].raw.X.A.mean(0) for gname in groupnames}
-    prec_groups_vars = {gname: Q[Q.obs.query(f'leiden==@gname').index,:].raw.X.A.var(0) for gname in groupnames}
+    prec_groups_means= {gname: Q[Q.obs.query(f'leiden==@gname').index,:].raw.X.toarray().mean(0) for gname in groupnames}
+    prec_groups_vars = {gname: Q[Q.obs.query(f'leiden==@gname').index,:].raw.X.toarray().var(0) for gname in groupnames}
     prec_groups_nobs = {gname: len(Q[Q.obs.query(f'leiden==@gname').index,:]) for gname in groupnames}
 
     the_df = []

@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name='sctools',
-      version=0.2,
+      version='0.3',
       description='Tools that come handy when working in scanpy all day long',
       url='http://github.com/redst4r/sctools/',
       author='redst4r',

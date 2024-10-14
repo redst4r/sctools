@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import scanpy as sc
 from scipy.sparse import spmatrix
 from rnaseqtools.biomart_mapping import biomart_query_all
 from sctools.score_genes import score_genes_cell_cycle, get_cellcycle_genes

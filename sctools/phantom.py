@@ -4,7 +4,6 @@ from scipy.stats import binom
 import matplotlib.pyplot as plt
 import tqdm
 import toolz
-import pandas as pd
 from scipy.special import logsumexp
 import scipy.special as sps
 import itertools

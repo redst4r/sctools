@@ -4,7 +4,11 @@ import numpy as np
 import tqdm
 import seaborn as sns
 import plotnine as pn
-import numpy as np
+from sctools.transforms import split_adata
+from scipy.stats import poisson
+import pandas as pd
+from sctools.misc import load_obs
+import h5py
 
 godsnot_64 = [
     # "#000000",  # remove the black, as often, we have black colored annotation
@@ -90,7 +94,7 @@ def rand_cmap(nlabels, type='bright', first_color_black=True, last_color_black=F
         bounds = np.linspace(0, nlabels, nlabels + 1)
         norm = colors.BoundaryNorm(bounds, nlabels)
 
-        cb = colorbar.ColorbarBase(ax, cmap=random_colormap, norm=norm, spacing='proportional', ticks=None,
+        _cb = colorbar.ColorbarBase(ax, cmap=random_colormap, norm=norm, spacing='proportional', ticks=None,
                                    boundaries=bounds, format='%1i', orientation=u'horizontal')
 
     return random_colormap
@@ -188,9 +192,7 @@ def kneeplot_split_cumulative(adata, splitfield='samplename'):
         ax.legend()
 
 
-from sctools.transforms import split_adata
-from scipy.stats import poisson
-import pandas as pd
+
 
 def sparse_var(X, axis):
     """
@@ -239,8 +241,7 @@ def plot_mean_var(adata, split=None):
         p2 = p2 + pn.facet_wrap('samplename')
     return p1, p2
 
-from sctools.misc import load_obs
-import h5py
+
 def extract_cmap_from_h5ad(h5ad_filename, field: str):
     """
     turn the colors stored in adata.uns into a dict: category->color
@@ -310,5 +311,5 @@ def plot_pca_heatmap(A, component, topn=15, xticklabels=False):
     df = df.sub(df.mean(axis=1), axis=0)
     df = df.div(df.std(axis=1), axis=0)
     sns.heatmap(df, yticklabels=True, xticklabels=xticklabels, center=0, vmin=-4, vmax=4)
-    plt.title(f'PC {component}');
+    plt.title(f'PC {component}')
     plt.show()

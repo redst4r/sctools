@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 
 """
 some code to parse output of Kraken/Bracken metagenomics analysis

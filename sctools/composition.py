@@ -1,7 +1,5 @@
 import numpy as np
 import pandas as pd
-import scanpy as sc
-from scipy.stats import gmean
 from scipy.spatial.distance import pdist, squareform
 from scipy.stats import dirichlet
 from sklearn.decomposition import PCA
@@ -173,7 +171,7 @@ def clustered_heatmap_from_sccoda_CLR(sccoda_adata, figsize=(15, 5), barcolormap
                               level_order=order, #cmap = godsnot_cmap
                               cmap=barcolormap
                               )
-    plt.xticks(rotation=90);
+    plt.xticks(rotation=90)
     return df_cluster, Z, fig1, fig2
 
 

@@ -339,7 +339,7 @@ def differential_expression_michi_kallisto_recipe(
     :param max_out_group_fraction: similar, just force genes to be exclusively expressed in the cluster: Filter genes that have more then x% cells expressing it outside the cluster
     :param csc_transform: for big matrices, things go alot faster if we have the .X matrix in csc format instead of csr. However this takes some memory! After we're done, we undo it
     """
-    assert not adata.raw is None, "no data is present in the .raw storage. Differential expression will is only done on the .raw data!"
+    assert adata.raw is not None, "no data is present in the .raw storage. Differential expression will is only done on the .raw data!"
     assert not adata.uns['log_raw.X']
     adata.raw.X.data = np.log1p(adata.raw.X.data)
 
@@ -351,8 +351,10 @@ def differential_expression_michi_kallisto_recipe(
         adata.raw = _raw
         logging.info('done csr->csc')
 
-
+    logging.info('Actual DE analysis via `rank_genes_groups`')
     sc.tl.rank_genes_groups(adata, groupby=groupby, n_genes=n_genes, method=method, use_raw=use_raw, key_added=key_added)
+    logging.info('Done: Actual DE analysis via `rank_genes_groups`')
+
     # undoing the log
     adata.raw.X.data = np.round(np.exp(adata.raw.X.data) - 1)
 
@@ -407,7 +409,7 @@ def get_ready_for_write_h5ad(adata):
     """
     # cleanup before saving
     var_to_drop = ['is_mito','is_ribo', 'is_coding']
-    if adata.raw != None:
+    if adata.raw is not None:
         adata.raw.var.drop([_ for _ in var_to_drop if _ in adata.raw.var],axis=1, inplace=True)
 
     adata.var.drop([_ for _ in var_to_drop if _ in adata.var],axis=1, inplace=True)
@@ -419,7 +421,7 @@ def get_ready_for_write_h5ad(adata):
         'rank_genes_groups_unfiltered',
         'nobatch_rank_genes_groups',
         'nobatch_rank_genes_groups_filtered',
-        'nobatch_rank_genes_groups_unfiltered'        
+        'nobatch_rank_genes_groups_unfiltered'
     ]
     for de in de_entries:
         if de not in adata.uns.keys():
@@ -460,7 +462,7 @@ def annotate_doublets(adata, groupby='samplename', PLOTTING=False, expected_doub
                                                                       min_gene_variability_pctl=85,
                                                                       n_prin_comps=50)
             if PLOTTING:
-                scrub.plot_histogram();
+                scrub.plot_histogram()
         else:
             print(f'Warning: too few cells to determine doublets! {len(b)}')
             doublet_scores = np.full(len(b), np.nan)

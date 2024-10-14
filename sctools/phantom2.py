@@ -3,6 +3,7 @@ some more code around PhantomPurger, this one's based on the rust implementation
 as used by pybustools.pybustools
 """
 
+import itertools
 from pybustools import pybustools as rustbus
 import time
 import pandas as pd
@@ -43,9 +44,8 @@ def cbumi_overlap_in_frequencies(busfolders):
     # df_read_rust = pd.Series(read_histogram).to_frame().reset_index().rename({f'level_{i}': f'read_{sname}' for i,sname in enumerate(samplenames)}, axis=1).rename({0:'frequency'}, axis=1)
 
     df_umi_rust = pd.Series(umi_histogram).to_frame().reset_index().rename({f'level_{i}': f'{sname}' for i,sname in enumerate(samplenames)}, axis=1).rename({0:'frequency'}, axis=1)
-    df_read_rust = pd.Series(read_histogram).to_frame().reset_index().rename({f'level_{i}': f'{sname}' for i,sname in enumerate(samplenames)}, axis=1).rename({0:'frequency'}, axis=1)        
+    df_read_rust = pd.Series(read_histogram).to_frame().reset_index().rename({f'level_{i}': f'{sname}' for i,sname in enumerate(samplenames)}, axis=1).rename({0:'frequency'}, axis=1)
     return df_umi_rust, df_read_rust
-
 
 
 def marginalize_fingerprint(df_fp, colnames):
@@ -55,7 +55,6 @@ def marginalize_fingerprint(df_fp, colnames):
     """
     return df_fp.groupby(colnames).frequency.sum().reset_index()
 
-import itertools
 def do_pairwise(df_fp, samplenames):
     """
     pairwise comparison of fingerprints/frequencies:w

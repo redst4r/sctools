@@ -1,4 +1,3 @@
-import pandas as pd
 import numpy as np
 """
 some code around John Storeys Q-value concept

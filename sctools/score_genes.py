@@ -5,7 +5,7 @@ also submitted as githb issue.
 Calculate scores based on the expression of gene lists.
 """
 from typing import Sequence, Optional
-
+import tqdm
 import numpy as np
 import pandas as pd
 from anndata import AnnData
@@ -384,7 +384,7 @@ def my_ssgsea(x: pd.Series, omega: float, gs, plotting=False):
     # now for the term summarizing the genes NOT in the vector
     NO_vector = np.zeros(len(x))
     for t in range(len(x)):
-        NO_vector[t] = 1 if not keys_sorted[t] in gene_set else 0
+        NO_vector[t] = 1 if keys_sorted[t] not in gene_set else 0
     Fi_not = np.cumsum(NO_vector) / (len(x) - len(gene_set))
 
     if plotting:

@@ -1,6 +1,6 @@
 import scanpy as sc
-import numpy as np
-import pandas as pd
+# import numpy as np
+# import pandas as pd
 from sctools import kallisto 
 # from sctools import adata_merge, annotate_cellcycle, enrich, annotate_qc_metrics
 

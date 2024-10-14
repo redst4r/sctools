@@ -4,7 +4,9 @@ import pandas as pd
 import tqdm
 import toolz
 import sctools.celltypes.panglaodb as panglaodb
-
+import celltypist
+from sctools import pipeline
+import scanpy as sc
 
 def build_marker_dict(adata, tissue):
     """
@@ -194,10 +196,7 @@ def build_table_literature_vs_differentially_expressed(cluster_celltype_mapping,
     return pd.DataFrame(the_table).sort_values('putative_celltype')
 
 
-import celltypist
-from celltypist import models
-from sctools import pipeline
-import scanpy as sc
+
 def do_celltypist(adata, modelname='Immune_All_Low.pkl'):
     """
     needs to have raw data in adata.raw
@@ -207,9 +206,9 @@ def do_celltypist(adata, modelname='Immune_All_Low.pkl'):
     sc.pp.normalize_total(adata_for_celltypist, target_sum=10000)
     sc.pp.log1p(adata_for_celltypist)
     predictions = celltypist.annotate(
-        adata_for_celltypist, 
-        model = modelname, 
-        # model = 'Immune_All_High.pkl', 
+        adata_for_celltypist,
+        model = modelname,
+        # model = 'Immune_All_High.pkl',
         majority_voting = True,
         # for multilabel prediction (also "Unassigned")
         # mode = 'prob match', p_thres = 0.5

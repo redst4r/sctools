@@ -48,7 +48,8 @@ def SAM_recipe(adata, batch_field,  n_top_genes, log=True):
     sc.pp.scale(adata)
     return adata
 
-
+import numpy as np
+import harmonypy as ha
 def harmony_iterative(adata, vars_use, niter):
     """
     this applies the harmony correction iteratively and gives access to the

@@ -152,18 +152,21 @@ def michi_kallisto_recipe(adata, umi_cutoff=1000, n_top_genes=4000, percent_mito
         adata = annotate_cellcycle(adata)
         logging.info('Done: Annotating Cell cycle')
 
+    logging.info('Saving median n_molecules for normalization')
+    adata.uns['nmol_median'] = np.median(adata.obs.n_molecules.values)
+
     logging.info('Zheng recipe')
     sc.pp.recipe_zheng17(adata, n_top_genes=n_top_genes, log=True, plot=False, copy=False)
-
-    logging.info('Done: Zheng recipe')
     # zheng17 log1p the .X data, but doesnt touch .raw.X!
     adata.uns['log_X'] = True
+    logging.info('Done: Zheng recipe')
 
-    adata = postprocessing_michi_kallisto_recipe(adata,
-                                                 harmony_correction,
-                                                 n_pcs=n_pcs,
-                                                 harmony_clusters=harmony_clusters,
-                                                 verbose=verbose)
+    adata = postprocessing_michi_kallisto_recipe(
+        adata,
+        harmony_correction,
+        n_pcs=n_pcs,
+        harmony_clusters=harmony_clusters,
+        verbose=verbose)
     if not ignore_int_test:
         assert np.all(adata.raw.X.data == np.round(adata.raw.X.data)), ".raw.X got log'd!"
 
@@ -180,6 +183,7 @@ def preprocessing_michi_kallisto_recipe(adata, umi_cutoff, percent_mito_cutoff, 
     logging.info('annotating and filtering for coding genes')
     adata = annotate_coding_genes(adata)
 
+    # DISREGARD THE WARNING, ==True is indeed necessary
     ix_coding = adata.var.is_coding == True
     # adata = adata[:, ix_coding]
     adata._inplace_subset_var(ix_coding) # inplace to not create a view
@@ -300,7 +304,7 @@ def _do_harmony(adata, harmony_correction: str, harmony_clusters):
                             nclust=harmony_clusters)
         corrected_X_pca = np.transpose(ho.Z_corr)
     else:
-        warnings.warn('Only single batch in the data, skipping harmonh')
+        warnings.warn('Only single batch in the data, skipping harmony')
         corrected_X_pca = np.array(adata.obsm['X_pca'])
 
     return corrected_X_pca
@@ -381,18 +385,39 @@ def differential_expression_michi_kallisto_recipe(
 
 
 def export_for_cellxgene(adata, annotations):
+
+    # Big issue: We want the full expression matrix, but HVG reduced the number of genes, hence storing anything related to .var
+    # will be tricky, e.g. the principal components (#HVG x 50)
+    # or the gene-annotations on the mean/std from scaling
+
+    # workaround for the PCs and .var frame:
+    # store it in uns, as a dataframe
+    df_PC = pd.DataFrame(
+        adata.varm['PCs'], 
+        index=adata.var_names,
+        columns=[f"PC{_}" for _ in range(adata.varm['PCs'].shape[1])]  # impotant to have the column names as str, h5py doesnt like ints here
+    )
+
+    hvg_var = adata.var[['ensembl_gene_id', 'mean', 'std']]
+
+    uns = dict(adata.uns)
+    uns['PCs'] = df_PC
+    uns['hvg_var'] = hvg_var
+
     # for Export we have to pull all the genes back into the adata.X!
-    _tmp = sc.AnnData(adata.raw.X,
-                      obs=adata.obs[annotations],
-                      var=adata.raw.var.copy(),
-                      uns=adata.uns,
-                      obsm=adata.obsm,
-                      # layers=adata.layers, # this will fail ALWAYS if there's any layers present on the adata due to size issues
-                      obsp=adata.obsp,
-                      # these two wont work: adata.raw is N x 35000, but adata.var and varm are N x 4000
-                      # varm=adata.varm,
-                      # varp=adata.varp
-                      )
+    _tmp = sc.AnnData(
+        adata.raw.X,
+        obs=adata.obs[annotations],
+        var=adata.raw.var.copy(),
+    #   uns=adata.uns,
+        uns=uns,
+        obsm=adata.obsm,
+        # layers=adata.layers, # this will fail ALWAYS if there's any layers present on the adata due to size issues
+        obsp=adata.obsp,
+        # these two wont work: adata.raw is N x 35000, but adata.var and varm are N x 4000
+        # varm=adata.varm,
+        # varp=adata.varp
+        )
     return _tmp
 
 

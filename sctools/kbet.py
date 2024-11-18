@@ -68,14 +68,14 @@ def calc_kBET(
     return stat, p_value, expected_counts, observed_counts
 
 def chi2test(expected_counts, observed_counts):
-    stat = np.sum(np.square(np.subtract(observed_counts.A, expected_counts)) / expected_counts, 1)
+    stat = np.sum(np.square(np.subtract(observed_counts.toarray(), expected_counts)) / expected_counts, 1)
     dof = expected_counts.shape[1] -1
     p_value = 1 - chi2.cdf(stat, dof)
     return stat, p_value
 
 def lrtest(expected_counts, observed_counts):
 
-    observed_counts = observed_counts.A
+    observed_counts = observed_counts.toarray()
     d = np.sum(observed_counts == 0, axis=1)  # number of unobserved cats in each neighborhood
     k = np.sum(observed_counts, axis=1)  # neighborhood size
     g1 = 1 / (k + d)

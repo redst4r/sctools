@@ -35,9 +35,9 @@ def DEG_one_vs_all(Q):
     print('precomputing')
     # prec_groups= {gname: Q[Q.obs.query(f'leiden==@gname').index,:] for gname in groupnames}
 
-    prec_groups_means= {gname: Q[Q.obs.query(f'leiden==@gname').index,:].raw.X.toarray().mean(0) for gname in groupnames}
-    prec_groups_vars = {gname: Q[Q.obs.query(f'leiden==@gname').index,:].raw.X.toarray().var(0) for gname in groupnames}
-    prec_groups_nobs = {gname: len(Q[Q.obs.query(f'leiden==@gname').index,:]) for gname in groupnames}
+    prec_groups_means= {gname: Q[Q.obs.query('leiden==@gname').index,:].raw.X.toarray().mean(0) for gname in groupnames}
+    prec_groups_vars = {gname: Q[Q.obs.query('leiden==@gname').index,:].raw.X.toarray().var(0) for gname in groupnames}
+    prec_groups_nobs = {gname: len(Q[Q.obs.query('leiden==@gname').index,:]) for gname in groupnames}
 
     the_df = []
 
@@ -268,7 +268,7 @@ def gene_expression_to_flat_df_NEW(adata, genes, additional_vars, scale, use_raw
         else:
             X = adata[:, the_gene].X
         if isinstance(X, spmatrix):
-            X = X.A
+            X = X.toarrray()
         X = X.flatten()
         # standard scaling
         if scale:
@@ -304,7 +304,7 @@ def gene_expression_to_flat_df(adata, genes, grouping_var, scale, use_raw):
             else:
                 X = adata[:, the_gene].X
             if isinstance(X, spmatrix):
-                X = X.A
+                X = X.toarray()
             X = X.flatten()
             # standard scaling
             if scale:
@@ -344,7 +344,7 @@ def de_adata_to_flat_df(adata, scale:bool, ngenes, qval_cutoff, key='rank_genes_
 
             # annoying, sometimes is sparse sometimes its not!
             if isinstance(X, spmatrix):
-                X = X.A
+                X = X.toarray()
             # standard scaling
             if scale:
                 X = X - X.mean()
@@ -416,7 +416,7 @@ def differential_expression_lm(adata, formula):
     results = []
     for i, gene in tqdm.tqdm(enumerate(adata.raw.var.index), total=adata.raw.shape[1]):
         df_tmp = adata.obs.copy()
-        df_tmp['gene'] = X[:, i].A
+        df_tmp['gene'] = X[:, i].toarray()
         df_tmp['log_gene'] = np.log10(1+df_tmp['gene'])
         df_tmp['rank_gene'] = df_tmp['gene'].rank()
         df_tmp['norm_gene'] = df_tmp['gene'] / adata.obs['n_molecules']

@@ -31,7 +31,11 @@ i.e. this sum can come out smaller then the actual sum
 """
 
 
-def _downsample_total_counts(X, total_counts, random_state, replace):
+def _downsample_total_counts(X, total_counts, random_state: int, replace):
+
+    assert isinstance(random_state, int), "numba doesnt work with float seeds"
+    shape = X.shape
+
     total_counts = int(total_counts)
     total = X.sum()
     if total < total_counts:
@@ -39,7 +43,7 @@ def _downsample_total_counts(X, total_counts, random_state, replace):
     assert issparse(X)
     original_type = type(X)
     if not isspmatrix_csr(X):
-        X = csr_matrix(X)
+        X = csr_matrix(X,shape=X.shape)
 
     X = X.astype(int)
     _downsample_array(
@@ -52,6 +56,7 @@ def _downsample_total_counts(X, total_counts, random_state, replace):
     X.eliminate_zeros()
     if original_type is not csr_matrix:
         X = original_type(X)
+    assert X.shape == shape
 
     return X
 

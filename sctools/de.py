@@ -45,7 +45,8 @@ def DEG_one_vs_all(Q):
     # such that each cluster is represented as group1
     # otherwise it gets very confusing to look for upregultated genes  of a specific cluster
     for i, j in itertools.product(groupnames, groupnames):
-        if i == j: continue
+        if i == j: 
+            continue
 
         g1m = prec_groups_means[i]
         g2m = prec_groups_means[j]
@@ -126,7 +127,7 @@ def scanpy_DE_to_dataframe_fast(adata, key='rank_genes_groups'):
     rank_dict = adata.uns[key]
     df = []
 
-    groupby = adata.uns[key]['params']['groupby']
+    # groupby = adata.uns[key]['params']['groupby']
     groupnames = adata.uns[key]['names'].dtype.names
 
     for i in range(len(rank_dict['scores'])):
@@ -445,10 +446,10 @@ def differential_expression_lm(adata, formula):
 
 
 
-def differential_expression_lm_parallel(adata, formula, cores=4):
-    """
-    chunk the expression matrix in multiple column blocks, do DE on each block in parallel
-    """
+# def differential_expression_lm_parallel(adata, formula, cores=4):
+#     """
+#     chunk the expression matrix in multiple column blocks, do DE on each block in parallel
+#     """
 
-    n_chunks = 100
+#     n_chunks = 100
 

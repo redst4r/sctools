@@ -5,10 +5,12 @@
 #
 
 """ Functions for calling cell-associated barcodes """
-import sys
 from collections import namedtuple
 import numpy as np
 import numpy.ma as ma
+import scipy.stats as sp_stats
+import tqdm
+
 # from cellranger.analysis.diffexp import adjust_pvalue_bh
 # import cellranger.stats as cr_stats
 # import cellranger.sgt as cr_sgt
@@ -102,9 +104,14 @@ def find_nonambient_barcodes(adata, orig_cell_bcs,
     bc_order = np.argsort(umis_per_bc)
 
     # Take what we expect to be the barcodes associated w/ empty partitions.
-    empty_bcs = bc_order[::-1][int(N_PARTITIONS/2):N_PARTITIONS]
-    empty_bcs.sort()
-
+    if False:
+        empty_bcs = bc_order[::-1][int(N_PARTITIONS/2):N_PARTITIONS]  # this is weird, they simply consider barcodes 45k-end for this?!
+        empty_bcs.sort()
+    else:
+        import warnings
+        warnings.warn('changed the code here!!')
+        empty_bcs = np.where(umis_per_bc < min_umis_nonambient)[0]
+        empty_bcs.sort()
     # Require non-zero barcodes (i.e. empty droplets, but >0 counts)
     nz_bcs = np.flatnonzero(umis_per_bc)
     nz_bcs.sort()
@@ -113,7 +120,9 @@ def find_nonambient_barcodes(adata, orig_cell_bcs,
 
     if len(use_bcs) > 0:
         try:
-            eval_features, ambient_profile_p = est_background_profile_sgt(adata.X.T, use_bcs)  #  transpose,, it expects BCs per column
+            print(f'Estimating background profile with {len(use_bcs)} barcodes')
+            # need to convert to int!! otherwise downstream exception complaining that we cant cast float32 to int64
+            eval_features, ambient_profile_p = est_background_profile_sgt(adata.X.T.astype(int), use_bcs)  #  transpose,, it expects BCs per column
         except SimpleGoodTuringError as e:
             print(str(e))
             return None
@@ -128,6 +137,7 @@ def find_nonambient_barcodes(adata, orig_cell_bcs,
 
     # No good incoming cell calls
     if orig_cells.sum() == 0:
+        print('orig_cells.sum()==0, returning None')
         return None
 
     # Look at non-cell barcodes above a minimum UMI count
@@ -146,6 +156,7 @@ def find_nonambient_barcodes(adata, orig_cell_bcs,
     eval_bcs = np.argsort(ma.masked_array(umis_per_bc, mask=eval_bcs.mask))[0:n_unmasked_bcs][-N_CANDIDATE_BARCODES:]
 
     if len(eval_bcs) == 0:
+        print('len(eval_bcs)==0, returning None')
         return None
 
     assert not np.any(np.isin(eval_bcs, orig_cells))
@@ -159,6 +170,7 @@ def find_nonambient_barcodes(adata, orig_cell_bcs,
         obs_loglk = np.repeat(np.nan, len(eval_bcs))
         pvalues = np.repeat(1, len(eval_bcs))
         sim_loglk = np.repeat(np.nan, len(eval_bcs))
+        print('ambient profile all zero, retunrin None')
         return None
 
     # Compute observed log-likelihood of barcodes being generated from ambient RNA
@@ -166,9 +178,13 @@ def find_nonambient_barcodes(adata, orig_cell_bcs,
 
     # Simulate log likelihoods
     # this needs to be paralellized!
-    distinct_ns, sim_loglk = simulate_multinomial_loglikelihoods(ambient_profile_p, umis_per_bc[eval_bcs], num_sims=10000, verbose=True, n_cores=n_cores)
+    # Addendum: For each umi_count (e.g. 500,...,1000), this simulates the logp that you'd get with this number of UMIs
+    # again ->int cast
+    distinct_ns, sim_loglk = simulate_multinomial_loglikelihoods(ambient_profile_p, umis_per_bc[eval_bcs].astype(int), num_sims=10000, verbose=True, n_cores=n_cores)
+    # print(distinct_ns.shape, sim_loglk.shape)
 
     # Compute p-values
+    # basically checks how far out the observed loglike is from the simulated null-distribution
     pvalues = compute_ambient_pvalues(umis_per_bc[eval_bcs], obs_loglk, distinct_ns, sim_loglk)
 
     pvalues_adj = adjust_pvalue_bh(pvalues)
@@ -206,7 +222,6 @@ def eval_multinomial_loglikelihoods(matrix, profile_p, max_mem_gb=0.1):
     return loglk
 
 
-import tqdm
 
 def _sim(profile_p, distinct_n, jump, n_sample_feature_block=1000000):
     log_profile_p = np.log(profile_p)
@@ -409,9 +424,7 @@ Based on S implementation in
   Journal of Quantitative Linguistics, 2:3, 217-237, DOI: 10.1080/09296179508590051
 """
 
-import numpy as np
-import scipy.stats as sp_stats
-import itertools
+
 
 class SimpleGoodTuringError(Exception):
     pass

@@ -114,7 +114,7 @@ def score_genes(
     --------
     See this `notebook <https://github.com/theislab/scanpy_usage/tree/master/180209_cell_cycle>`__.
     """
-    start = logg.info(f'computing score {score_name!r}')
+    logg.info(f'computing score {score_name!r}')
     adata = adata.copy() if copy else adata
 
     if random_state is not None:

@@ -1,10 +1,7 @@
 import pandas as pd
 import numpy as np
-import scanpy as sc
-import toolz
 import anndata2ri
 from rpy2.robjects import r
-from rpy2.robjects.conversion import localconverter
 import plotnine as pn
 
 

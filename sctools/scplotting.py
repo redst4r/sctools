@@ -150,13 +150,13 @@ def kneeplot_split_plotnine(adata, splitfield='samplename'):
 
     df_result = []
     for group, obs_group in adata.obs.groupby(splitfield):
-        O = obs_group.sort_values('n_molecules', ascending=False)[['n_molecules']]
-        O['x'] = np.arange(O.shape[0])
-        O['norm_n_molecules'] = O['n_molecules'] / O['n_molecules'].sum()
+        obs_tmp = obs_group.sort_values('n_molecules', ascending=False)[['n_molecules']]
+        obs_tmp['x'] = np.arange(obs_tmp.shape[0])
+        obs_tmp['norm_n_molecules'] = obs_tmp['n_molecules'] / obs_tmp['n_molecules'].sum()
 
         for s in splitfield:
-            O[s] = obs_group[s].values
-        df_result.append(O)
+            obs_tmp[s] = obs_group[s].values
+        df_result.append(obs_tmp)
 
     return pd.concat(df_result)
 

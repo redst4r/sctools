@@ -9,7 +9,6 @@ sys.path.append('/home/mstrasse/anndata2ri')
 import anndata2ri
 
 import statsmodels.api as sm
-from statsmodels.stats.multitest import multipletests
 from patsy import dmatrices
 import pandas as pd
 import scanpy as sc

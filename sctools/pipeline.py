@@ -392,16 +392,18 @@ def export_for_cellxgene(adata, annotations):
 
     # workaround for the PCs and .var frame:
     # store it in uns, as a dataframe
-    df_PC = pd.DataFrame(
-        adata.varm['PCs'], 
-        index=adata.var_names,
-        columns=[f"PC{_}" for _ in range(adata.varm['PCs'].shape[1])]  # impotant to have the column names as str, h5py doesnt like ints here
-    )
-
-    hvg_var = adata.var[['ensembl_gene_id', 'mean', 'std']]
-
     uns = dict(adata.uns)
-    uns['PCs'] = df_PC
+
+    if 'PCs' in adata.varm:
+        df_PC = pd.DataFrame(
+            adata.varm['PCs'], 
+            index=adata.var_names,
+            columns=[f"PC{_}" for _ in range(adata.varm['PCs'].shape[1])]  # impotant to have the column names as str, h5py doesnt like ints here
+        )
+        uns['PCs'] = df_PC
+
+    var_columns = ['ensembl_gene_id', 'mean', 'std']
+    hvg_var = adata.var[[_ for _ in var_columns  if _ in adata.var.columns]]
     uns['hvg_var'] = hvg_var
 
     # for Export we have to pull all the genes back into the adata.X!

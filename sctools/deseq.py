@@ -3,9 +3,6 @@ from rpy2.robjects.conversion import localconverter
 from rpy2.robjects.packages import importr
 from rpy2.robjects import pandas2ri
 import numpy as np
-import sys
-# sys.path.append('/home/michi/ms_python_packages/anndata2ri')
-sys.path.append('/home/mstrasse/anndata2ri')
 import anndata2ri
 
 import statsmodels.api as sm
@@ -30,15 +27,6 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, vars_of_interest):
 
     assert isinstance(vars_of_interest, list), "var_of_interest must be a string"
     importr("DESeq2")
-    importr("PCAtools")
-    """
-    if missing do
-    ------------------------------------------
-    if (!require("BiocManager", quietly = TRUE))
-        install.packages("BiocManager")
-    BiocManager::install("PCAtools")
-    ------------------------------------------
-    """
 
     # move into R
     with localconverter(ro.default_converter + anndata2ri.converter):
@@ -52,10 +40,6 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, vars_of_interest):
     # doing DEseq computations
     print('Main DESeq conputation')
     ro.r('dds <- DESeq(dds)')
-
-    # some visualization
-    ro.r('vsd <- vst(dds, blind=FALSE)')
-    ro.r('p <- PCAtools::pca(assay(vsd), metadata = colData(dds), removeVar = 0.1, scale=F)')
 
     pandas2ri.activate()
     result_dict = {}
@@ -79,28 +63,38 @@ def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, vars_of_interest):
             )
             result_dict[r] = df_merged
 
+    ro.r('vsd <- vst(dds, blind=FALSE)')
     df_vsd = ro.r('assay(vsd)')
     adata_vsd = sc.AnnData(df_vsd.T, obs=adata_pseudo.obs, var=adata_pseudo.var)
-    # get the PCA
-    # df_pca = ro.r('p')
-    # dict_pca = dict(df_pca.items())
-    dict_pca = {}
-    dict_pca['metadata'] = ro.r('as.data.frame(p$metadata)')
-    dict_pca['rotated'] = ro.r('as.data.frame(p$rotated)')
-    dict_pca['loadings'] = ro.r('as.data.frame(p$loadings)')
-    dict_pca['dispersions'] = ro.r('as.data.frame(mcols(dds))')
-    dict_pca['size_factors'] = ro.r('sizeFactors(dds)')
-    # dict_pca['variance'] = ro.r('as.data.frame(p$variance)')
-    # dict_pca['sdev'] = ro.r('as.data.frame')(dict_pca['sdev'])
-    # dict_pca['xvars'] = ro.r('as.data.frame')(dict_pca['xvars'])
-    # dict_pca['yvars'] = ro.r('as.data.frame')(dict_pca['yvars'])
-    # dict_pca['components'] = ro.r('as.data.frame')(dict_pca['components'])
-
     pandas2ri.deactivate()
 
-    dict_pca['df_pca'] = dict_pca['rotated'].merge(dict_pca['metadata'], left_index=True, right_index=True)
+    if False:
+        # some visualization
+        importr("PCAtools")
+        ro.r('p <- PCAtools::pca(assay(vsd), metadata = colData(dds), removeVar = 0.1, scale=F)')
+        # get the PCA
+        # df_pca = ro.r('p')
+        # dict_pca = dict(df_pca.items())
+        pandas2ri.activate()
 
-    return result_dict, dict_pca, adata_vsd, ro.r('dds')
+        dict_pca = {}
+        dict_pca['metadata'] = ro.r('as.data.frame(p$metadata)')
+        dict_pca['rotated'] = ro.r('as.data.frame(p$rotated)')
+        dict_pca['loadings'] = ro.r('as.data.frame(p$loadings)')
+        dict_pca['dispersions'] = ro.r('as.data.frame(mcols(dds))')
+        dict_pca['size_factors'] = ro.r('sizeFactors(dds)')
+        # dict_pca['variance'] = ro.r('as.data.frame(p$variance)')
+        # dict_pca['sdev'] = ro.r('as.data.frame')(dict_pca['sdev'])
+        # dict_pca['xvars'] = ro.r('as.data.frame')(dict_pca['xvars'])
+        # dict_pca['yvars'] = ro.r('as.data.frame')(dict_pca['yvars'])
+        # dict_pca['components'] = ro.r('as.data.frame')(dict_pca['components'])
+        dict_pca['df_pca'] = dict_pca['rotated'].merge(dict_pca['metadata'], left_index=True, right_index=True)
+
+        pandas2ri.deactivate()
+        return result_dict, dict_pca, adata_vsd, ro.r('dds')
+    else:
+        return result_dict, adata_vsd, ro.r('dds')
+
 
 def DESeq2_pseudobulk_wrapper_LRT(adata_pseudo, formula_full: str, formula_reduced: str):
     """
@@ -112,15 +106,6 @@ def DESeq2_pseudobulk_wrapper_LRT(adata_pseudo, formula_full: str, formula_reduc
     assert formula_full.startswith('~'), "Formula must start with ~"
     assert formula_reduced.startswith('~'), "Formula must start with ~"
     importr("DESeq2")
-    importr("PCAtools")
-    """
-    if missing do
-    ------------------------------------------
-    if (!require("BiocManager", quietly = TRUE))
-        install.packages("BiocManager")
-    BiocManager::install("PCAtools")
-    ------------------------------------------
-    """
 
     # move into R
     with localconverter(ro.default_converter + anndata2ri.converter):
@@ -139,31 +124,43 @@ def DESeq2_pseudobulk_wrapper_LRT(adata_pseudo, formula_full: str, formula_reduc
     print('Main DESeq conputation')
 #     ro.r('dds <- DESeq(dds)')
     ro.r(f'dds <- DESeq(dds, test="LRT", reduced = {formula_reduced})')
-
-    # some visualization
     ro.r('vsd <- vst(dds, blind=FALSE)')
-    ro.r('p <- PCAtools::pca(assay(vsd), metadata = colData(dds), removeVar = 0.1, scale=F)')
 
     pandas2ri.activate()
     df_DE = ro.r('as.data.frame(results(dds))')
-
     df_vsd = ro.r('assay(vsd)')
-    adata_vsd = sc.AnnData(df_vsd.T, obs=adata_pseudo.obs, var=adata_pseudo.var)
-
-    dict_pca = {}
-    dict_pca['metadata'] = ro.r('as.data.frame(p$metadata)')
-    dict_pca['rotated'] = ro.r('as.data.frame(p$rotated)')
-    dict_pca['loadings'] = ro.r('as.data.frame(p$loadings)')
-
-    # get the PCA
-    # df_pca = ro.r('p')
-    # dict_pca = dict(df_pca.items())
-    # dict_pca['metadata'] = ro.r('as.data.frame')(dict_pca['metadata'])
-
     pandas2ri.deactivate()
 
-    dict_pca['df_pca'] = dict_pca['rotated'].merge(dict_pca['metadata'], left_index=True, right_index=True)
-    return df_DE, dict_pca, adata_vsd, ro.r('dds')
+    adata_vsd = sc.AnnData(df_vsd.T, obs=adata_pseudo.obs, var=adata_pseudo.var)
+
+    
+    if False:
+        """ currently, PCAtools has a weird error: 
+        [matrixStats (>= 1.2.0)] useNames = NA is defunct. Instead, specify either useNames = TRUE or useNames = FALSE
+        """
+        importr("PCAtools")
+
+        # some visualization
+        ro.r('p <- PCAtools::pca(assay(vsd), metadata = colData(dds), removeVar = 0.1, scale=F)')
+
+        pandas2ri.activate()
+        dict_pca = {}
+        dict_pca['metadata'] = ro.r('as.data.frame(p$metadata)')
+        dict_pca['rotated'] = ro.r('as.data.frame(p$rotated)')
+        dict_pca['loadings'] = ro.r('as.data.frame(p$loadings)')
+
+        # get the PCA
+        # df_pca = ro.r('p')
+        # dict_pca = dict(df_pca.items())
+        # dict_pca['metadata'] = ro.r('as.data.frame')(dict_pca['metadata'])
+
+        pandas2ri.deactivate()
+
+        dict_pca['df_pca'] = dict_pca['rotated'].merge(dict_pca['metadata'], left_index=True, right_index=True)
+        return df_DE, dict_pca, adata_vsd, ro.r('dds')
+    
+    else:
+        return df_DE, adata_vsd, ro.r('dds')
 
 
 """

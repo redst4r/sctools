@@ -9,8 +9,22 @@ import statsmodels.api as sm
 from patsy import dmatrices
 import pandas as pd
 import scanpy as sc
-
 import itertools
+
+"""
+required:
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("tximport")
+BiocManager::install("dplyr")
+BiocManager::install("DESeq2")
+BiocManager::install("rhdf5")
+BiocManager::install("SingleCellExperiment")
+BiocManager::install("apeglm")
+"""
+
+
 def DESeq2_pseudobulk_wrapper(adata_pseudo, formula: str, vars_of_interest):
     """
     :param formula: something like "~treatment + batch", needs to start with a ~

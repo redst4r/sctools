@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.cluster.hierarchy import linkage, leaves_list
 import tqdm
+import pertpy as pt
 
 def log_geometric_mean(x, axis):
     """
@@ -132,24 +133,17 @@ def plot_pca_loadings(principal_components_df, components=(0,1)):
         plt.text(x=pc1.values[i], y=pc2.values[i], s=pc1.index[i])
 
 
-# actual hiereachical clustering on the posterior-mean distances
 def clustered_heatmap_from_sccoda_CLR(sccoda_adata, figsize=(15, 5), barcolormap=None, cat_colormaps=None, n_samples=1000):
 
-    from sccoda.util import data_visualization as viz
-
     if cat_colormaps is None:
-        from crukiopy.colormaps import color_dict_diagnosis
-        cat_colormaps = {'diagnosis': color_dict_diagnosis, 'procedure': {'biopsy': 'red', 'resection': 'blue'}}
+        # cat_colormaps = {'diagnosis': color_dict_diagnosis, 'procedure': {'biopsy': 'red', 'resection': 'blue'}}
+        cvectors = None
+    else:
+        cvectors = []
+        for cat, cmap in cat_colormaps.items():
+            vec = [cmap[_] for _ in sccoda_adata.obs[cat]]
+            cvectors.append(vec)
 
-    cvectors = []
-    for cat, cmap in cat_colormaps.items():
-        vec = [cmap[_] for _ in sccoda_adata.obs[cat]]
-        cvectors.append(vec)
-
-
-    # diag_colors = [color_dict_diagnosis[_] for _ in sccoda_adata.obs.diagnosis]
-    # procedure_colors = ['red' if _ =="biopsy" else "blue" for _ in sccoda_adata.obs.procedure]
-    # cvectors = [diag_colors, procedure_colors]
     X = sccoda_adata.X.copy()
     D_bayes = aichinson_distance_bayesian(sccoda_adata.X, axis=1, n_samples=n_samples)
     D_posterior_mean = D_bayes.mean(axis=2)
@@ -161,19 +155,23 @@ def clustered_heatmap_from_sccoda_CLR(sccoda_adata, figsize=(15, 5), barcolormap
                    col_colors=cvectors,
                    xticklabels=True, yticklabels=True, figsize=figsize,
                    method='ward', #dendrogram_ratio=0.2,
-#                    cmap=sns.dark_palette("#69d", reverse=False, as_cmap=True),
                    cmap=sns.color_palette("Blues"),
     )
 
     ix = leaves_list(Z)
     order = [sccoda_adata.obs.index[i] for i in ix]
-    fig2 = viz.stacked_barplot(sccoda_adata, feature_name="samples", figsize=figsize,
-                              level_order=order, #cmap = godsnot_cmap
-                              cmap=barcolormap
-                              )
+
+    sccoda_model = pt.tl.Sccoda()
+    fig2 = sccoda_model.plot_stacked_barplot(
+        sccoda_adata,
+        modality_key="coda",
+        feature_name="samples",
+        figsize=figsize, show=False, palette=barcolormap,
+        level_order=order
+    )  
+
     plt.xticks(rotation=90)
     return df_cluster, Z, fig1, fig2
-
 
 """
 Conpoistional algebra/geometry
